@@ -1,0 +1,272 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+    * {
+        box-sizing: border-box;
+    }
+
+    html,
+    body {
+        height: 100%;
+        overflow: hidden;
+        margin: 0;
+        padding: 0;
+    }
+
+    html {
+        font-family: 'Inter', system-ui, sans-serif;
+    }
+
+    body {
+        @apply bg-slate-50 text-slate-900 dark:bg-slate-900 dark:text-slate-100;
+    }
+
+    #root {
+        height: 100%;
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    /* Prevent text selection during resize */
+    .resizing {
+        user-select: none;
+    }
+}
+
+@layer components {
+    .btn {
+        @apply px-4 py-2 rounded-lg font-medium transition-all duration-200;
+        @apply focus:outline-none focus:ring-2 focus:ring-offset-2;
+    }
+
+    .btn-primary {
+        @apply bg-indigo-600 text-white hover:bg-indigo-700;
+        @apply focus:ring-indigo-500;
+    }
+
+    .btn-secondary {
+        @apply bg-slate-200 text-slate-700 hover:bg-slate-300;
+        @apply dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600;
+        @apply focus:ring-slate-500;
+    }
+
+    .btn-ghost {
+        @apply bg-transparent hover:bg-slate-100 dark:hover:bg-slate-800;
+    }
+
+    .card {
+        @apply bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700;
+    }
+
+    .input {
+        @apply w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600;
+        @apply bg-white dark:bg-slate-800;
+        @apply focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent;
+    }
+
+    .select {
+        @apply px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600;
+        @apply bg-white dark:bg-slate-800;
+        @apply focus:outline-none focus:ring-2 focus:ring-indigo-500;
+        @apply cursor-pointer;
+    }
+
+    .editor-container {
+        @apply rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700;
+        height: 100%;
+    }
+}
+
+/* Monaco Editor Overrides */
+.monaco-editor {
+    font-family: 'JetBrains Mono', 'Fira Code', monospace !important;
+}
+
+/* Mermaid Diagram Styles */
+.mermaid {
+    @apply flex justify-center items-center p-4;
+}
+
+.mermaid svg {
+    max-width: 100%;
+    height: auto;
+}
+
+/* Scrollbar Styles */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    @apply bg-slate-100 dark:bg-slate-800;
+}
+
+::-webkit-scrollbar-thumb {
+    @apply bg-slate-300 dark:bg-slate-600 rounded-full;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    @apply bg-slate-400 dark:bg-slate-500;
+}
+
+/* Animations */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateX(100%);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+.animate-fade-in {
+    animation: fadeIn 0.3s ease-out;
+}
+
+.animate-slide-up {
+    animation: slideUp 0.3s ease-out;
+}
+
+.animate-slide-in {
+    animation: slideIn 0.3s ease-out;
+}
+
+
+/* Resizable Panel Styles */
+.resize-handle {
+    @apply flex-shrink-0 flex items-center justify-center transition-colors;
+}
+
+.resize-handle:hover {
+    @apply bg-indigo-500/30;
+}
+
+.resize-handle-horizontal {
+    @apply w-1.5 cursor-col-resize;
+}
+
+.resize-handle-vertical {
+    @apply h-1.5 cursor-row-resize;
+}
+
+/* Diagram content styling */
+.diagram-content svg {
+    max-width: 100%;
+    height: auto;
+}
+
+/* Better scrollbars for preview */
+.preview-container::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+.preview-container::-webkit-scrollbar-thumb {
+    @apply bg-slate-300 dark:bg-slate-600 rounded-full;
+}
+
+/* Grid background for preview */
+.preview-grid {
+    background-image:
+        linear-gradient(to right, rgba(148, 163, 184, 0.1) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(148, 163, 184, 0.1) 1px, transparent 1px);
+    background-size: 20px 20px;
+}
+
+/* Zoomable Preview */
+.zoomable-content {
+    transform-origin: center center;
+    will-change: transform;
+}
+
+/* Panel transitions */
+.panel-collapse-enter {
+    animation: panelExpand 0.2s ease-out;
+}
+
+.panel-collapse-exit {
+    animation: panelCollapse 0.2s ease-out;
+}
+
+@keyframes panelExpand {
+    from {
+        opacity: 0;
+        max-height: 0;
+    }
+
+    to {
+        opacity: 1;
+        max-height: 1000px;
+    }
+}
+
+@keyframes panelCollapse {
+    from {
+        opacity: 1;
+        max-height: 1000px;
+    }
+
+    to {
+        opacity: 0;
+        max-height: 0;
+    }
+}
+
+/* Keyboard shortcut styles */
+kbd {
+    @apply inline-flex items-center justify-center min-w-[1.5rem];
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+}
+
+/* Better focus styles */
+button:focus-visible,
+a:focus-visible {
+    @apply outline-none ring-2 ring-indigo-500 ring-offset-2 dark:ring-offset-slate-900;
+}
+
+/* Tooltip styles */
+[data-tooltip] {
+    position: relative;
+}
+
+[data-tooltip]::after {
+    content: attr(data-tooltip);
+    @apply absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1;
+    @apply bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900;
+    @apply text-xs rounded whitespace-nowrap opacity-0 pointer-events-none;
+    @apply transition-opacity duration-200;
+}
+
+[data-tooltip]:hover::after {
+    @apply opacity-100;
+}
