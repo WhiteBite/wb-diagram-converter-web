@@ -1,8 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { convert } from '@whitebite/diagram-converter';
-
-type InputFormat = 'mermaid' | 'drawio' | 'excalidraw' | 'plantuml' | 'dot';
-type OutputFormat = 'drawio' | 'excalidraw' | 'mermaid' | 'plantuml' | 'dot' | 'svg' | 'png';
+import type { InputFormat, OutputFormat } from '@whitebite/diagram-converter';
 
 interface ConvertOptionsValue {
     transliterate: boolean;

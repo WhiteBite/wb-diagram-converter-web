@@ -303,6 +303,8 @@ export function Preview({ code, format, output, outputFormat }: PreviewProps) {
                         setOutputError(null);
                     }
                 } else {
+                    // For text-based formats without visual preview (D2, Structurizr, BPMN, GraphML)
+                    // Show a placeholder indicating the output is ready but no visual preview
                     setOutputSvg('');
                     setOutputError(null);
                 }
@@ -353,7 +355,20 @@ export function Preview({ code, format, output, outputFormat }: PreviewProps) {
         if (outputSvg) {
             return <div dangerouslySetInnerHTML={{ __html: outputSvg }} className="diagram-content" />;
         }
-        // All formats should have preview now
+        // Text-based formats without visual preview
+        const textOnlyFormats = ['d2', 'structurizr', 'bpmn', 'graphml'];
+        if (textOnlyFormats.includes(outputFormat) && output) {
+            return (
+                <div className="text-center text-slate-500 p-6">
+                    <p className="text-sm mb-2">✅ Converted to {outputFormat.toUpperCase()}</p>
+                    <p className="text-xs text-slate-400">Visual preview not available for this format.</p>
+                    <p className="text-xs text-slate-400">Check the Output panel for the code.</p>
+                </div>
+            );
+        }
+        if (!output) {
+            return <div className="text-slate-400 text-sm">No output yet</div>;
+        }
         return (
             <div className="text-center text-slate-400 p-6">
                 <p className="text-sm animate-pulse">Converting...</p>
