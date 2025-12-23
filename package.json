@@ -11,7 +11,7 @@
     },
     "dependencies": {
         "@monaco-editor/react": "^4.6.0",
-        "@whitebite/diagram-converter": "workspace:*",
+        "@whitebite/diagram-converter": "^0.1.0",
         "lucide-react": "^0.303.0",
         "mermaid": "^10.6.0",
         "react": "^18.2.0",
