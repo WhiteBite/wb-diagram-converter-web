@@ -76,7 +76,7 @@ export function Header({ darkMode, onToggleDarkMode, onShare }: HeaderProps) {
                         </a>
 
                         <a
-                            href="https://github.com/whitebite/wb-diagrams"
+                            href="https://github.com/WhiteBite/wb-diagram-converter-web"
                             target="_blank"
                             rel="noopener noreferrer"
                             className="btn btn-secondary flex items-center gap-2"
