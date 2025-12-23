@@ -209,12 +209,6 @@ export function Preview({ code, format, output, outputFormat }: PreviewProps) {
         setIsSourceLoading(true);
     }, [format]);
 
-    useEffect(() => {
-        setOutputSvg('');
-        setOutputError(null);
-        setIsOutputLoading(true);
-    }, [outputFormat]);
-
     // Render source preview (supports multiple formats)
     useEffect(() => {
         if (!code.trim()) {
@@ -294,9 +288,11 @@ export function Preview({ code, format, output, outputFormat }: PreviewProps) {
 
     // Render output preview
     useEffect(() => {
+        // Clear previous state immediately to prevent flash of old error
+        setOutputSvg('');
+        setOutputError(null);
+
         if (!output) {
-            setOutputSvg('');
-            setOutputError(null);
             setIsOutputLoading(false);
             return;
         }
@@ -712,12 +708,26 @@ async function renderViaKroki(code: string, format: string): Promise<string> {
 
     const url = `https://kroki.io/${format}/svg/${base64url}`;
 
-    const response = await fetch(url);
-    if (!response.ok) {
-        const text = await response.text();
-        throw new Error(`Kroki render failed: ${response.status} - ${text.slice(0, 100)}`);
+    // Add timeout to prevent hanging
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+
+    try {
+        const response = await fetch(url, { signal: controller.signal });
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+            const text = await response.text();
+            throw new Error(`Kroki render failed: ${response.status} - ${text.slice(0, 100)}`);
+        }
+        return await response.text();
+    } catch (err) {
+        clearTimeout(timeoutId);
+        if (err instanceof Error && err.name === 'AbortError') {
+            throw new Error('Kroki request timed out');
+        }
+        throw err;
     }
-    return await response.text();
 }
 
 // GraphML simple SVG renderer (since Kroki doesn't support GraphML)
