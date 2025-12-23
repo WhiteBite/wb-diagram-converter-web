@@ -25,6 +25,11 @@ export function FormatSelector({
         { value: 'excalidraw', label: t.formats.excalidraw, icon: '✏️' },
         { value: 'plantuml', label: t.formats.plantuml, icon: '🌱' },
         { value: 'dot', label: t.formats.dot, icon: '🔗' },
+        { value: 'd2', label: 'D2', icon: '📝' },
+        { value: 'structurizr', label: 'Structurizr (C4)', icon: '🏗️' },
+        { value: 'bpmn', label: 'BPMN', icon: '⚙️' },
+        { value: 'graphml', label: 'GraphML (yEd)', icon: '📈' },
+        { value: 'lucidchart', label: 'Lucidchart', icon: '💡' },
     ];
 
     const OUTPUT_FORMATS: Array<{ value: string; label: string; icon: string; disabled?: boolean }> = [
@@ -33,6 +38,10 @@ export function FormatSelector({
         { value: 'mermaid', label: t.formats.mermaid, icon: '📊' },
         { value: 'plantuml', label: t.formats.plantuml, icon: '🌱' },
         { value: 'dot', label: t.formats.dot, icon: '🔗' },
+        { value: 'd2', label: 'D2', icon: '📝' },
+        { value: 'structurizr', label: 'Structurizr (C4)', icon: '🏗️' },
+        { value: 'bpmn', label: 'BPMN', icon: '⚙️' },
+        { value: 'graphml', label: 'GraphML (yEd)', icon: '📈' },
         { value: 'svg', label: t.formats.svg, icon: '🖼️' },
         { value: 'png', label: t.formats.png, icon: '📷' },
     ];

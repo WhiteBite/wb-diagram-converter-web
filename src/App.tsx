@@ -12,8 +12,7 @@ import { useConverter } from './hooks/useConverter';
 import { useFixer } from './hooks/useFixer';
 import { EXAMPLES } from './data/examples';
 
-type InputFormat = 'mermaid' | 'drawio' | 'excalidraw' | 'plantuml' | 'dot';
-type OutputFormat = 'drawio' | 'excalidraw' | 'mermaid' | 'plantuml' | 'dot' | 'svg' | 'png';
+import type { InputFormat, OutputFormat } from '@whitebite/diagram-converter';
 
 const DEFAULT_CODE = `flowchart LR
     A[Start] --> B{Decision}
