@@ -4,6 +4,7 @@ import {
     Columns, Grid3X3, Image, Move
 } from 'lucide-react';
 import { FullscreenModal } from './FullscreenModal';
+import pako from 'pako';
 
 interface PreviewProps {
     code: string;
@@ -214,9 +215,9 @@ export function Preview({ code, format, output, outputFormat }: PreviewProps) {
         setIsOutputLoading(true);
     }, [outputFormat]);
 
-    // Render Mermaid source preview
+    // Render source preview (supports multiple formats)
     useEffect(() => {
-        if (format !== 'mermaid' || !code.trim()) {
+        if (!code.trim()) {
             setSourceSvg('');
             setSourceError(null);
             setIsSourceLoading(false);
@@ -224,18 +225,62 @@ export function Preview({ code, format, output, outputFormat }: PreviewProps) {
         }
 
         setIsSourceLoading(true);
-        const renderMermaid = async () => {
+        const renderSource = async () => {
             try {
-                const mermaid = await import('mermaid');
-                mermaid.default.initialize({
-                    startOnLoad: false,
-                    theme: document.documentElement.classList.contains('dark') ? 'dark' : 'default',
-                    securityLevel: 'loose',
-                });
-                const id = `mermaid-source-${Date.now()}`;
-                const { svg } = await mermaid.default.render(id, code);
-                setSourceSvg(svg);
-                setSourceError(null);
+                if (format === 'mermaid') {
+                    const mermaid = await import('mermaid');
+                    mermaid.default.initialize({
+                        startOnLoad: false,
+                        theme: document.documentElement.classList.contains('dark') ? 'dark' : 'default',
+                        securityLevel: 'loose',
+                    });
+                    const id = `mermaid-source-${Date.now()}`;
+                    const { svg } = await mermaid.default.render(id, code);
+                    setSourceSvg(svg);
+                    setSourceError(null);
+                } else if (format === 'plantuml') {
+                    const svg = await renderPlantUmlSvg(code);
+                    setSourceSvg(svg);
+                    setSourceError(null);
+                } else if (format === 'dot') {
+                    const svg = await renderDotSvg(code);
+                    setSourceSvg(svg);
+                    setSourceError(null);
+                } else if (format === 'd2') {
+                    const svg = await renderViaKroki(code, 'd2');
+                    setSourceSvg(svg);
+                    setSourceError(null);
+                } else if (format === 'structurizr') {
+                    const svg = await renderViaKroki(code, 'structurizr');
+                    setSourceSvg(svg);
+                    setSourceError(null);
+                } else if (format === 'bpmn') {
+                    const svg = await renderViaKroki(code, 'bpmn');
+                    setSourceSvg(svg);
+                    setSourceError(null);
+                } else if (format === 'graphml') {
+                    const svg = renderGraphmlSvg(code);
+                    setSourceSvg(svg);
+                    setSourceError(null);
+                } else if (format === 'lucidchart') {
+                    // Lucidchart JSON - render as simple node graph
+                    const svg = renderLucidchartSvg(code);
+                    setSourceSvg(svg);
+                    setSourceError(null);
+                } else if (format === 'excalidraw') {
+                    const data = JSON.parse(code);
+                    const svg = renderExcalidrawSvg(data.elements || []);
+                    setSourceSvg(svg);
+                    setSourceError(null);
+                } else if (format === 'drawio') {
+                    const svg = renderDrawioSvg(code);
+                    setSourceSvg(svg);
+                    setSourceError(null);
+                } else {
+                    // Unknown format - no preview
+                    setSourceSvg('');
+                    setSourceError(null);
+                }
             } catch (err) {
                 setSourceError(err instanceof Error ? err.message : 'Render failed');
                 setSourceSvg('');
@@ -243,7 +288,7 @@ export function Preview({ code, format, output, outputFormat }: PreviewProps) {
                 setIsSourceLoading(false);
             }
         };
-        const timeout = setTimeout(renderMermaid, 400);
+        const timeout = setTimeout(renderSource, 400);
         return () => clearTimeout(timeout);
     }, [code, format]);
 
@@ -302,9 +347,27 @@ export function Preview({ code, format, output, outputFormat }: PreviewProps) {
                         setOutputSvg('');
                         setOutputError(null);
                     }
+                } else if (outputFormat === 'd2') {
+                    // D2 via Kroki API
+                    const svg = await renderViaKroki(output, 'd2');
+                    setOutputSvg(svg);
+                    setOutputError(null);
+                } else if (outputFormat === 'structurizr') {
+                    // Structurizr via Kroki API
+                    const svg = await renderViaKroki(output, 'structurizr');
+                    setOutputSvg(svg);
+                    setOutputError(null);
+                } else if (outputFormat === 'bpmn') {
+                    // BPMN via Kroki API
+                    const svg = await renderViaKroki(output, 'bpmn');
+                    setOutputSvg(svg);
+                    setOutputError(null);
+                } else if (outputFormat === 'graphml') {
+                    // GraphML - render as simple node graph
+                    const svg = renderGraphmlSvg(output);
+                    setOutputSvg(svg);
+                    setOutputError(null);
                 } else {
-                    // For text-based formats without visual preview (D2, Structurizr, BPMN, GraphML)
-                    // Show a placeholder indicating the output is ready but no visual preview
                     setOutputSvg('');
                     setOutputError(null);
                 }
@@ -331,11 +394,11 @@ export function Preview({ code, format, output, outputFormat }: PreviewProps) {
                 </div>
             );
         }
-        if (!sourceSvg && format === 'mermaid') {
-            return <div className="text-slate-400 text-sm">Enter Mermaid code</div>;
+        if (!sourceSvg && !code.trim()) {
+            return <div className="text-slate-400 text-sm">Enter {format} code</div>;
         }
         if (!sourceSvg) {
-            return <div className="text-slate-400 text-sm">Preview not available for {format}</div>;
+            return <div className="text-slate-400 text-sm">Rendering {format}...</div>;
         }
         return <div dangerouslySetInnerHTML={{ __html: sourceSvg }} className="diagram-content" />;
     };
@@ -354,17 +417,6 @@ export function Preview({ code, format, output, outputFormat }: PreviewProps) {
         }
         if (outputSvg) {
             return <div dangerouslySetInnerHTML={{ __html: outputSvg }} className="diagram-content" />;
-        }
-        // Text-based formats without visual preview
-        const textOnlyFormats = ['d2', 'structurizr', 'bpmn', 'graphml'];
-        if (textOnlyFormats.includes(outputFormat) && output) {
-            return (
-                <div className="text-center text-slate-500 p-6">
-                    <p className="text-sm mb-2">✅ Converted to {outputFormat.toUpperCase()}</p>
-                    <p className="text-xs text-slate-400">Visual preview not available for this format.</p>
-                    <p className="text-xs text-slate-400">Check the Output panel for the code.</p>
-                </div>
-            );
         }
         if (!output) {
             return <div className="text-slate-400 text-sm">No output yet</div>;
@@ -638,4 +690,258 @@ async function renderDotSvg(code: string): Promise<string> {
     const { instance } = await import('@viz-js/viz');
     const viz = await instance();
     return viz.renderString(code, { format: 'svg', engine: 'dot' });
+}
+
+
+// Kroki API for D2, Structurizr, BPMN rendering
+// Kroki requires: deflate -> base64url encoding
+async function renderViaKroki(code: string, format: string): Promise<string> {
+    // Encode text to UTF-8 bytes
+    const encoder = new TextEncoder();
+    const data = encoder.encode(code);
+
+    // Deflate compress
+    const compressed = pako.deflate(data, { level: 9 });
+
+    // Convert to base64url (URL-safe base64)
+    const base64 = btoa(String.fromCharCode(...compressed));
+    const base64url = base64
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_')
+        .replace(/=+$/, '');
+
+    const url = `https://kroki.io/${format}/svg/${base64url}`;
+
+    const response = await fetch(url);
+    if (!response.ok) {
+        const text = await response.text();
+        throw new Error(`Kroki render failed: ${response.status} - ${text.slice(0, 100)}`);
+    }
+    return await response.text();
+}
+
+// GraphML simple SVG renderer (since Kroki doesn't support GraphML)
+function renderGraphmlSvg(xmlString: string): string {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(xmlString, 'text/xml');
+
+    interface GraphNode {
+        id: string;
+        label: string;
+        x: number;
+        y: number;
+        width: number;
+        height: number;
+    }
+
+    interface GraphEdge {
+        source: string;
+        target: string;
+        label?: string;
+    }
+
+    const nodes: GraphNode[] = [];
+    const edges: GraphEdge[] = [];
+
+    // Parse nodes
+    const nodeElements = doc.querySelectorAll('node');
+    let idx = 0;
+    nodeElements.forEach(node => {
+        const id = node.getAttribute('id') || `n${idx}`;
+        // Try to get label from data element or NodeLabel
+        let label = id;
+        const labelEl = node.querySelector('NodeLabel, data[key="label"], data[key="d2"]');
+        if (labelEl?.textContent) label = labelEl.textContent.trim();
+
+        // Simple grid layout
+        const col = idx % 4;
+        const row = Math.floor(idx / 4);
+        nodes.push({
+            id,
+            label,
+            x: 50 + col * 180,
+            y: 50 + row * 100,
+            width: 140,
+            height: 60,
+        });
+        idx++;
+    });
+
+    // Parse edges
+    const edgeElements = doc.querySelectorAll('edge');
+    edgeElements.forEach(edge => {
+        const source = edge.getAttribute('source') || '';
+        const target = edge.getAttribute('target') || '';
+        const labelEl = edge.querySelector('EdgeLabel, data[key="label"], data[key="d3"]');
+        edges.push({
+            source,
+            target,
+            label: labelEl?.textContent?.trim(),
+        });
+    });
+
+    // Calculate bounds
+    const padding = 40;
+    const maxX = Math.max(...nodes.map(n => n.x + n.width), 400);
+    const maxY = Math.max(...nodes.map(n => n.y + n.height), 200);
+    const viewWidth = maxX + padding;
+    const viewHeight = maxY + padding;
+
+    // Build SVG
+    let svg = `<svg viewBox="0 0 ${viewWidth} ${viewHeight}" width="${viewWidth}" height="${viewHeight}" xmlns="http://www.w3.org/2000/svg">`;
+    svg += `<defs>
+        <filter id="gshadow"><feDropShadow dx="1" dy="2" stdDeviation="2" flood-opacity="0.1"/></filter>
+        <marker id="garrow" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#6366f1"/>
+        </marker>
+    </defs>`;
+
+    // Create node map for edge drawing
+    const nodeMap = new Map(nodes.map(n => [n.id, n]));
+
+    // Draw edges
+    edges.forEach(edge => {
+        const src = nodeMap.get(edge.source);
+        const tgt = nodeMap.get(edge.target);
+        if (!src || !tgt) return;
+
+        const sx = src.x + src.width;
+        const sy = src.y + src.height / 2;
+        const tx = tgt.x;
+        const ty = tgt.y + tgt.height / 2;
+        const mx = (sx + tx) / 2;
+
+        svg += `<path d="M ${sx} ${sy} C ${mx} ${sy}, ${mx} ${ty}, ${tx} ${ty}" fill="none" stroke="#94a3b8" stroke-width="2" marker-end="url(#garrow)"/>`;
+
+        if (edge.label) {
+            svg += `<text x="${mx}" y="${(sy + ty) / 2 - 8}" text-anchor="middle" fill="#64748b" font-size="10" font-family="system-ui">${escapeHtml(edge.label)}</text>`;
+        }
+    });
+
+    // Draw nodes
+    nodes.forEach(node => {
+        const { x, y, width: w, height: h, label } = node;
+        svg += `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="#e0e7ff" stroke="#6366f1" stroke-width="2" rx="6" filter="url(#gshadow)"/>`;
+        svg += `<text x="${x + w / 2}" y="${y + h / 2}" text-anchor="middle" dominant-baseline="central" fill="#1e293b" font-size="12" font-family="system-ui">${escapeHtml(label)}</text>`;
+    });
+
+    return svg + '</svg>';
+}
+
+function escapeHtml(str: string): string {
+    return str.replace(/[<>&"']/g, c => ({
+        '<': '&lt;',
+        '>': '&gt;',
+        '&': '&amp;',
+        '"': '&quot;',
+        "'": '&#39;',
+    }[c] || c));
+}
+
+// Lucidchart JSON simple SVG renderer
+function renderLucidchartSvg(jsonString: string): string {
+    interface LucidNode {
+        id: string;
+        text?: string;
+        boundingBox?: { x: number; y: number; w: number; h: number };
+        class?: string;
+    }
+    interface LucidLine {
+        id: string;
+        endpoint1?: { connectedShapeId?: string };
+        endpoint2?: { connectedShapeId?: string };
+        text?: string;
+    }
+    interface LucidData {
+        shapes?: LucidNode[];
+        lines?: LucidLine[];
+    }
+
+    let data: LucidData;
+    try {
+        data = JSON.parse(jsonString);
+    } catch {
+        throw new Error('Invalid Lucidchart JSON');
+    }
+
+    const shapes = data.shapes || [];
+    const lines = data.lines || [];
+
+    interface NodeInfo {
+        id: string;
+        label: string;
+        x: number;
+        y: number;
+        width: number;
+        height: number;
+    }
+
+    const nodes: NodeInfo[] = [];
+    let idx = 0;
+
+    shapes.forEach(shape => {
+        const bb = shape.boundingBox;
+        const x = bb?.x ?? (50 + (idx % 4) * 180);
+        const y = bb?.y ?? (50 + Math.floor(idx / 4) * 100);
+        const w = bb?.w ?? 140;
+        const h = bb?.h ?? 60;
+
+        nodes.push({
+            id: shape.id,
+            label: shape.text || shape.id,
+            x, y,
+            width: w,
+            height: h,
+        });
+        idx++;
+    });
+
+    // Calculate bounds
+    const padding = 40;
+    const maxX = Math.max(...nodes.map(n => n.x + n.width), 400);
+    const maxY = Math.max(...nodes.map(n => n.y + n.height), 200);
+    const viewWidth = maxX + padding;
+    const viewHeight = maxY + padding;
+
+    let svg = `<svg viewBox="0 0 ${viewWidth} ${viewHeight}" width="${viewWidth}" height="${viewHeight}" xmlns="http://www.w3.org/2000/svg">`;
+    svg += `<defs>
+        <filter id="lshadow"><feDropShadow dx="1" dy="2" stdDeviation="2" flood-opacity="0.1"/></filter>
+        <marker id="larrow" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#6366f1"/>
+        </marker>
+    </defs>`;
+
+    const nodeMap = new Map(nodes.map(n => [n.id, n]));
+
+    // Draw lines
+    lines.forEach(line => {
+        const srcId = line.endpoint1?.connectedShapeId;
+        const tgtId = line.endpoint2?.connectedShapeId;
+        if (!srcId || !tgtId) return;
+
+        const src = nodeMap.get(srcId);
+        const tgt = nodeMap.get(tgtId);
+        if (!src || !tgt) return;
+
+        const sx = src.x + src.width;
+        const sy = src.y + src.height / 2;
+        const tx = tgt.x;
+        const ty = tgt.y + tgt.height / 2;
+        const mx = (sx + tx) / 2;
+
+        svg += `<path d="M ${sx} ${sy} C ${mx} ${sy}, ${mx} ${ty}, ${tx} ${ty}" fill="none" stroke="#94a3b8" stroke-width="2" marker-end="url(#larrow)"/>`;
+
+        if (line.text) {
+            svg += `<text x="${mx}" y="${(sy + ty) / 2 - 8}" text-anchor="middle" fill="#64748b" font-size="10" font-family="system-ui">${escapeHtml(line.text)}</text>`;
+        }
+    });
+
+    // Draw nodes
+    nodes.forEach(node => {
+        const { x, y, width: w, height: h, label } = node;
+        svg += `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="#fef3c7" stroke="#f59e0b" stroke-width="2" rx="6" filter="url(#lshadow)"/>`;
+        svg += `<text x="${x + w / 2}" y="${y + h / 2}" text-anchor="middle" dominant-baseline="central" fill="#1e293b" font-size="12" font-family="system-ui">${escapeHtml(label)}</text>`;
+    });
+
+    return svg + '</svg>';
 }

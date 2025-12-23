@@ -15,10 +15,12 @@
         "@whitebite/diagram-converter": "file:../wb-diagram-converter",
         "lucide-react": "^0.303.0",
         "mermaid": "^10.6.0",
+        "pako": "^2.1.0",
         "react": "^18.2.0",
         "react-dom": "^18.2.0"
     },
     "devDependencies": {
+        "@types/pako": "^2.0.4",
         "@types/react": "^18.2.0",
         "@types/react-dom": "^18.2.0",
         "@typescript-eslint/eslint-plugin": "^6.21.0",
