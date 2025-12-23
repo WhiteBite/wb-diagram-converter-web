@@ -260,9 +260,33 @@ export function Preview({ code, format, output, outputFormat }: PreviewProps) {
 
     // Render output preview
     useEffect(() => {
-        if (!output) return;
+        if (!output) {
+            setOutputSvg('');
+            setOutputError(null);
+            return;
+        }
 
-        if (outputFormat === 'excalidraw') {
+        if (outputFormat === 'mermaid') {
+            const renderMermaidOutput = async () => {
+                try {
+                    const mermaid = await import('mermaid');
+                    mermaid.default.initialize({
+                        startOnLoad: false,
+                        theme: document.documentElement.classList.contains('dark') ? 'dark' : 'default',
+                        securityLevel: 'loose',
+                    });
+
+                    const id = `mermaid-output-${Date.now()}`;
+                    const { svg } = await mermaid.default.render(id, output);
+                    setOutputSvg(svg);
+                    setOutputError(null);
+                } catch (err) {
+                    setOutputError(err instanceof Error ? err.message : 'Failed to render');
+                    setOutputSvg('');
+                }
+            };
+            renderMermaidOutput();
+        } else if (outputFormat === 'excalidraw') {
             try {
                 const data = JSON.parse(output);
                 const elements = data.elements || [];

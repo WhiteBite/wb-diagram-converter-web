@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Copy, Download, Check, AlertCircle, Loader2, Maximize2, WrapText, Hash } from 'lucide-react';
+import { Copy, Download, Check, AlertCircle, Loader2, Maximize2, WrapText, Hash, ExternalLink } from 'lucide-react';
 import { CodeEditor } from './CodeEditor';
 import { FullscreenModal } from './FullscreenModal';
 
@@ -9,6 +9,8 @@ interface OutputPanelProps {
     isConverting: boolean;
     format: string;
 }
+
+const BOARD_URL = 'https://whitebite.github.io/wb-diagram-board';
 
 export function OutputPanel({ output, error, isConverting, format }: OutputPanelProps) {
     const [copied, setCopied] = useState(false);
@@ -52,6 +54,16 @@ export function OutputPanel({ output, error, isConverting, format }: OutputPanel
         a.click();
         URL.revokeObjectURL(url);
     };
+
+    const handleOpenInEditor = async () => {
+        if (!output) return;
+        // Copy to clipboard and open editor
+        await navigator.clipboard.writeText(output);
+        window.open(BOARD_URL, '_blank');
+    };
+
+    // Check if format is supported by the editor
+    const canOpenInEditor = ['excalidraw'].includes(format);
 
     const getLanguage = () => {
         switch (format) {
@@ -134,6 +146,16 @@ export function OutputPanel({ output, error, isConverting, format }: OutputPanel
                     >
                         <Download className="w-4 h-4" />
                     </button>
+                    {canOpenInEditor && (
+                        <button
+                            onClick={handleOpenInEditor}
+                            disabled={!output || isConverting}
+                            className="p-1.5 rounded hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-50 transition-colors text-indigo-600"
+                            title="Open in Editor"
+                        >
+                            <ExternalLink className="w-4 h-4" />
+                        </button>
+                    )}
                     <button
                         onClick={() => setIsFullscreen(true)}
                         disabled={!output}
