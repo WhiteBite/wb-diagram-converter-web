@@ -209,6 +209,13 @@ export function Preview({ code, format, output, outputFormat }: PreviewProps) {
         setIsSourceLoading(true);
     }, [format]);
 
+    // Clear output state on outputFormat change - prevent flash of old error
+    useEffect(() => {
+        setOutputSvg('');
+        setOutputError(null);
+        setIsOutputLoading(true);
+    }, [outputFormat]);
+
     // Render source preview (supports multiple formats)
     useEffect(() => {
         if (!code.trim()) {
@@ -344,14 +351,26 @@ export function Preview({ code, format, output, outputFormat }: PreviewProps) {
                         setOutputError(null);
                     }
                 } else if (outputFormat === 'd2') {
-                    // D2 via Kroki API
-                    const svg = await renderViaKroki(output, 'd2');
-                    setOutputSvg(svg);
+                    // D2 - try Kroki, fallback to local renderer
+                    try {
+                        const svg = await renderViaKroki(output, 'd2');
+                        setOutputSvg(svg);
+                    } catch {
+                        // Fallback to local D2 renderer
+                        const svg = renderD2Svg(output);
+                        setOutputSvg(svg);
+                    }
                     setOutputError(null);
                 } else if (outputFormat === 'structurizr') {
-                    // Structurizr via Kroki API
-                    const svg = await renderViaKroki(output, 'structurizr');
-                    setOutputSvg(svg);
+                    // Structurizr - try Kroki, fallback to local renderer
+                    try {
+                        const svg = await renderViaKroki(output, 'structurizr');
+                        setOutputSvg(svg);
+                    } catch {
+                        // Fallback to local Structurizr renderer
+                        const svg = renderStructurizrSvg(output);
+                        setOutputSvg(svg);
+                    }
                     setOutputError(null);
                 } else if (outputFormat === 'bpmn') {
                     // BPMN via Kroki API
@@ -951,6 +970,285 @@ function renderLucidchartSvg(jsonString: string): string {
         const { x, y, width: w, height: h, label } = node;
         svg += `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="#fef3c7" stroke="#f59e0b" stroke-width="2" rx="6" filter="url(#lshadow)"/>`;
         svg += `<text x="${x + w / 2}" y="${y + h / 2}" text-anchor="middle" dominant-baseline="central" fill="#1e293b" font-size="12" font-family="system-ui">${escapeHtml(label)}</text>`;
+    });
+
+    return svg + '</svg>';
+}
+
+
+// D2 simple SVG renderer (fallback when Kroki fails)
+function renderD2Svg(code: string): string {
+    interface D2Node {
+        id: string;
+        label: string;
+        x: number;
+        y: number;
+        width: number;
+        height: number;
+        shape?: string;
+    }
+    interface D2Edge {
+        source: string;
+        target: string;
+        label?: string;
+    }
+
+    const nodes: D2Node[] = [];
+    const edges: D2Edge[] = [];
+    const nodeMap = new Map<string, D2Node>();
+
+    // Parse D2 code - simple line-by-line parsing
+    const lines = code.split('\n');
+    let nodeIdx = 0;
+
+    for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith('#')) continue;
+
+        // Edge pattern: A -> B or A -- B or A <-> B
+        const edgeMatch = trimmed.match(/^([a-zA-Z0-9_]+)\s*(->|--|<->|<-)\s*([a-zA-Z0-9_]+)(?:\s*:\s*(.+))?$/);
+        if (edgeMatch) {
+            const [, src, , tgt, label] = edgeMatch;
+
+            // Ensure nodes exist
+            if (!nodeMap.has(src)) {
+                const col = nodeIdx % 4;
+                const row = Math.floor(nodeIdx / 4);
+                const node: D2Node = { id: src, label: src, x: 50 + col * 180, y: 50 + row * 100, width: 140, height: 60 };
+                nodes.push(node);
+                nodeMap.set(src, node);
+                nodeIdx++;
+            }
+            if (!nodeMap.has(tgt)) {
+                const col = nodeIdx % 4;
+                const row = Math.floor(nodeIdx / 4);
+                const node: D2Node = { id: tgt, label: tgt, x: 50 + col * 180, y: 50 + row * 100, width: 140, height: 60 };
+                nodes.push(node);
+                nodeMap.set(tgt, node);
+                nodeIdx++;
+            }
+
+            edges.push({ source: src, target: tgt, label: label?.trim() });
+            continue;
+        }
+
+        // Node definition: A: "Label" or A.shape: oval
+        const nodeMatch = trimmed.match(/^([a-zA-Z0-9_]+)(?:\.shape)?\s*:\s*(.+)$/);
+        if (nodeMatch) {
+            const [, id, value] = nodeMatch;
+            if (!nodeMap.has(id)) {
+                const col = nodeIdx % 4;
+                const row = Math.floor(nodeIdx / 4);
+                const label = value.replace(/^["']|["']$/g, '');
+                const node: D2Node = { id, label, x: 50 + col * 180, y: 50 + row * 100, width: 140, height: 60 };
+                nodes.push(node);
+                nodeMap.set(id, node);
+                nodeIdx++;
+            } else {
+                const node = nodeMap.get(id)!;
+                if (trimmed.includes('.shape')) {
+                    node.shape = value;
+                } else {
+                    node.label = value.replace(/^["']|["']$/g, '');
+                }
+            }
+            continue;
+        }
+
+        // Simple node: just an identifier
+        const simpleMatch = trimmed.match(/^([a-zA-Z0-9_]+)$/);
+        if (simpleMatch && !nodeMap.has(simpleMatch[1])) {
+            const id = simpleMatch[1];
+            const col = nodeIdx % 4;
+            const row = Math.floor(nodeIdx / 4);
+            const node: D2Node = { id, label: id, x: 50 + col * 180, y: 50 + row * 100, width: 140, height: 60 };
+            nodes.push(node);
+            nodeMap.set(id, node);
+            nodeIdx++;
+        }
+    }
+
+    // Calculate bounds
+    const padding = 40;
+    const maxX = Math.max(...nodes.map(n => n.x + n.width), 400);
+    const maxY = Math.max(...nodes.map(n => n.y + n.height), 200);
+    const viewWidth = maxX + padding;
+    const viewHeight = maxY + padding;
+
+    let svg = `<svg viewBox="0 0 ${viewWidth} ${viewHeight}" width="${viewWidth}" height="${viewHeight}" xmlns="http://www.w3.org/2000/svg">`;
+    svg += `<defs>
+        <filter id="d2shadow"><feDropShadow dx="1" dy="2" stdDeviation="2" flood-opacity="0.1"/></filter>
+        <marker id="d2arrow" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#0ea5e9"/>
+        </marker>
+    </defs>`;
+
+    // Draw edges
+    edges.forEach(edge => {
+        const src = nodeMap.get(edge.source);
+        const tgt = nodeMap.get(edge.target);
+        if (!src || !tgt) return;
+
+        const sx = src.x + src.width;
+        const sy = src.y + src.height / 2;
+        const tx = tgt.x;
+        const ty = tgt.y + tgt.height / 2;
+        const mx = (sx + tx) / 2;
+
+        svg += `<path d="M ${sx} ${sy} C ${mx} ${sy}, ${mx} ${ty}, ${tx} ${ty}" fill="none" stroke="#0ea5e9" stroke-width="2" marker-end="url(#d2arrow)"/>`;
+
+        if (edge.label) {
+            svg += `<text x="${mx}" y="${(sy + ty) / 2 - 8}" text-anchor="middle" fill="#64748b" font-size="10" font-family="system-ui">${escapeHtml(edge.label)}</text>`;
+        }
+    });
+
+    // Draw nodes
+    nodes.forEach(node => {
+        const { x, y, width: w, height: h, label, shape } = node;
+
+        if (shape === 'oval' || shape === 'circle') {
+            svg += `<ellipse cx="${x + w / 2}" cy="${y + h / 2}" rx="${w / 2}" ry="${h / 2}" fill="#e0f2fe" stroke="#0ea5e9" stroke-width="2" filter="url(#d2shadow)"/>`;
+        } else if (shape === 'diamond') {
+            svg += `<polygon points="${x + w / 2},${y} ${x + w},${y + h / 2} ${x + w / 2},${y + h} ${x},${y + h / 2}" fill="#fef3c7" stroke="#f59e0b" stroke-width="2" filter="url(#d2shadow)"/>`;
+        } else {
+            svg += `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="#e0f2fe" stroke="#0ea5e9" stroke-width="2" rx="6" filter="url(#d2shadow)"/>`;
+        }
+
+        svg += `<text x="${x + w / 2}" y="${y + h / 2}" text-anchor="middle" dominant-baseline="central" fill="#0c4a6e" font-size="12" font-family="system-ui">${escapeHtml(label)}</text>`;
+    });
+
+    return svg + '</svg>';
+}
+
+// Structurizr DSL simple SVG renderer (fallback when Kroki fails)
+function renderStructurizrSvg(code: string): string {
+    interface StructNode {
+        id: string;
+        label: string;
+        description?: string;
+        x: number;
+        y: number;
+        width: number;
+        height: number;
+        type: 'person' | 'softwaresystem' | 'container' | 'component';
+    }
+    interface StructEdge {
+        source: string;
+        target: string;
+        label?: string;
+    }
+
+    const nodes: StructNode[] = [];
+    const edges: StructEdge[] = [];
+    const nodeMap = new Map<string, StructNode>();
+
+    // Parse Structurizr DSL
+    const lines = code.split('\n');
+    let nodeIdx = 0;
+
+    for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith('#') || trimmed.startsWith('//')) continue;
+
+        // Person/SoftwareSystem/Container/Component definition
+        const elementMatch = trimmed.match(/^(person|softwareSystem|container|component)\s+([a-zA-Z0-9_]+)\s*=?\s*"([^"]+)"(?:\s+"([^"]+)")?/i);
+        if (elementMatch) {
+            const [, type, id, label, desc] = elementMatch;
+            const col = nodeIdx % 3;
+            const row = Math.floor(nodeIdx / 3);
+            const node: StructNode = {
+                id,
+                label,
+                description: desc,
+                x: 50 + col * 200,
+                y: 50 + row * 120,
+                width: 160,
+                height: 80,
+                type: type.toLowerCase() as StructNode['type'],
+            };
+            nodes.push(node);
+            nodeMap.set(id, node);
+            nodeIdx++;
+            continue;
+        }
+
+        // Relationship: source -> target "label"
+        const relMatch = trimmed.match(/^([a-zA-Z0-9_]+)\s*->\s*([a-zA-Z0-9_]+)(?:\s+"([^"]+)")?/);
+        if (relMatch) {
+            const [, src, tgt, label] = relMatch;
+            edges.push({ source: src, target: tgt, label });
+        }
+    }
+
+    // Calculate bounds
+    const padding = 40;
+    const maxX = Math.max(...nodes.map(n => n.x + n.width), 400);
+    const maxY = Math.max(...nodes.map(n => n.y + n.height), 200);
+    const viewWidth = maxX + padding;
+    const viewHeight = maxY + padding;
+
+    let svg = `<svg viewBox="0 0 ${viewWidth} ${viewHeight}" width="${viewWidth}" height="${viewHeight}" xmlns="http://www.w3.org/2000/svg">`;
+    svg += `<defs>
+        <filter id="sshadow"><feDropShadow dx="1" dy="2" stdDeviation="2" flood-opacity="0.1"/></filter>
+        <marker id="sarrow" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#64748b"/>
+        </marker>
+    </defs>`;
+
+    // Draw edges
+    edges.forEach(edge => {
+        const src = nodeMap.get(edge.source);
+        const tgt = nodeMap.get(edge.target);
+        if (!src || !tgt) return;
+
+        const sx = src.x + src.width;
+        const sy = src.y + src.height / 2;
+        const tx = tgt.x;
+        const ty = tgt.y + tgt.height / 2;
+        const mx = (sx + tx) / 2;
+
+        svg += `<path d="M ${sx} ${sy} C ${mx} ${sy}, ${mx} ${ty}, ${tx} ${ty}" fill="none" stroke="#64748b" stroke-width="2" stroke-dasharray="5,3" marker-end="url(#sarrow)"/>`;
+
+        if (edge.label) {
+            svg += `<text x="${mx}" y="${(sy + ty) / 2 - 8}" text-anchor="middle" fill="#64748b" font-size="10" font-family="system-ui">${escapeHtml(edge.label)}</text>`;
+        }
+    });
+
+    // Draw nodes with type-specific styling
+    nodes.forEach(node => {
+        const { x, y, width: w, height: h, label, description, type } = node;
+
+        let fill = '#e0e7ff';
+        let stroke = '#6366f1';
+
+        if (type === 'person') {
+            fill = '#dbeafe';
+            stroke = '#3b82f6';
+            // Draw person icon (circle head + body)
+            svg += `<circle cx="${x + w / 2}" cy="${y + 15}" r="12" fill="${fill}" stroke="${stroke}" stroke-width="2"/>`;
+            svg += `<path d="M ${x + w / 2 - 20} ${y + h - 10} Q ${x + w / 2} ${y + 35} ${x + w / 2 + 20} ${y + h - 10}" fill="${fill}" stroke="${stroke}" stroke-width="2"/>`;
+        } else if (type === 'softwaresystem') {
+            fill = '#dbeafe';
+            stroke = '#2563eb';
+            svg += `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${fill}" stroke="${stroke}" stroke-width="2" rx="4" filter="url(#sshadow)"/>`;
+        } else if (type === 'container') {
+            fill = '#e0f2fe';
+            stroke = '#0284c7';
+            svg += `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${fill}" stroke="${stroke}" stroke-width="2" rx="4" filter="url(#sshadow)"/>`;
+        } else {
+            fill = '#f0f9ff';
+            stroke = '#0ea5e9';
+            svg += `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${fill}" stroke="${stroke}" stroke-width="2" rx="4" filter="url(#sshadow)"/>`;
+        }
+
+        // Label
+        const labelY = type === 'person' ? y + h - 25 : y + h / 2 - (description ? 8 : 0);
+        svg += `<text x="${x + w / 2}" y="${labelY}" text-anchor="middle" dominant-baseline="central" fill="#1e3a5f" font-size="12" font-weight="600" font-family="system-ui">${escapeHtml(label)}</text>`;
+
+        // Description
+        if (description && type !== 'person') {
+            svg += `<text x="${x + w / 2}" y="${y + h / 2 + 12}" text-anchor="middle" dominant-baseline="central" fill="#64748b" font-size="9" font-family="system-ui">${escapeHtml(description.slice(0, 25))}</text>`;
+        }
     });
 
     return svg + '</svg>';

@@ -1,18 +1,23 @@
 import { useState } from 'react';
-import { Copy, Download, Check, AlertCircle, Loader2, Maximize2, WrapText, Hash, ExternalLink } from 'lucide-react';
+import { Copy, Download, Check, AlertCircle, Loader2, Maximize2, WrapText, Hash, ExternalLink, Pencil } from 'lucide-react';
 import { CodeEditor } from './CodeEditor';
 import { FullscreenModal } from './FullscreenModal';
+import { CONFIG } from '../config';
 
 interface OutputPanelProps {
     output: string;
     error: string | null;
     isConverting: boolean;
     format: string;
+    /** Whether visual editing is available for this output format */
+    canEditVisually?: boolean;
+    /** Whether visual editing is in progress */
+    isEditingVisually?: boolean;
+    /** Callback to edit output visually */
+    onEditVisually?: () => void;
 }
 
-const BOARD_URL = 'https://whitebite.github.io/wb-diagram-board';
-
-export function OutputPanel({ output, error, isConverting, format }: OutputPanelProps) {
+export function OutputPanel({ output, error, isConverting, format, canEditVisually, isEditingVisually, onEditVisually }: OutputPanelProps) {
     const [copied, setCopied] = useState(false);
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [wordWrap, setWordWrap] = useState(true);
@@ -57,9 +62,9 @@ export function OutputPanel({ output, error, isConverting, format }: OutputPanel
 
     const handleOpenInEditor = async () => {
         if (!output) return;
-        // Copy to clipboard and open editor
+        // Copy to clipboard and open editor with import parameter
         await navigator.clipboard.writeText(output);
-        window.open(BOARD_URL, '_blank');
+        window.open(`${CONFIG.boardUrl}?import=clipboard`, '_blank');
     };
 
     // Check if format is supported by the editor
@@ -107,6 +112,25 @@ export function OutputPanel({ output, error, isConverting, format }: OutputPanel
                 </div>
 
                 <div className="flex items-center gap-1">
+                    {/* Edit Visually button */}
+                    {canEditVisually && onEditVisually && (
+                        <>
+                            <button
+                                onClick={onEditVisually}
+                                disabled={!output || isConverting || isEditingVisually}
+                                data-testid="edit-output-visually"
+                                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded text-sm font-medium bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                title="Edit output diagram visually"
+                            >
+                                {isEditingVisually ? (
+                                    <><Loader2 className="w-4 h-4 animate-spin" /><span>Editing...</span></>
+                                ) : (
+                                    <><Pencil className="w-4 h-4" /><span>Edit Visually</span></>
+                                )}
+                            </button>
+                            <div className="w-px h-4 bg-slate-200 dark:bg-slate-600 mx-1" />
+                        </>
+                    )}
                     {/* Toggle buttons */}
                     <button
                         onClick={() => setWordWrap(!wordWrap)}

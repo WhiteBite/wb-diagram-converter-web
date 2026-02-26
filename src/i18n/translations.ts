@@ -46,6 +46,13 @@ export interface Translations {
     // Examples Gallery
     exampleDiagrams: string;
 
+    // History
+    history: string;
+    clearHistory: string;
+    noHistory: string;
+    historyHint: string;
+    remove: string;
+
     // Output Panel
     conversionError: string;
     converting: string;
@@ -140,6 +147,13 @@ export const translations: Record<Language, Translations> = {
         // Examples Gallery
         exampleDiagrams: 'Example Diagrams',
 
+        // History
+        history: 'Conversion History',
+        clearHistory: 'Clear history',
+        noHistory: 'No conversion history yet',
+        historyHint: 'Your recent conversions will appear here',
+        remove: 'Remove',
+
         // Output Panel
         conversionError: 'Conversion Error',
         converting: 'Converting...',
@@ -232,6 +246,13 @@ export const translations: Record<Language, Translations> = {
 
         // Examples Gallery
         exampleDiagrams: 'Примеры диаграмм',
+
+        // History
+        history: 'История конвертаций',
+        clearHistory: 'Очистить историю',
+        noHistory: 'История конвертаций пуста',
+        historyHint: 'Здесь будут отображаться последние конвертации',
+        remove: 'Удалить',
 
         // Output Panel
         conversionError: 'Ошибка конвертации',

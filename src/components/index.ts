@@ -4,6 +4,7 @@
 
 export { CodeEditor } from './CodeEditor';
 export { ConvertOptions } from './ConvertOptions';
+export { EditInBoardButton } from './EditInBoardButton';
 export { ExamplesGallery } from './ExamplesGallery';
 export { FormatSelector } from './FormatSelector';
 export { FullscreenModal } from './FullscreenModal';
@@ -14,3 +15,4 @@ export { Preview } from './Preview';
 export { ResizablePanel } from './ResizablePanel';
 export { ToastContainer, useToast } from './Toast';
 export { ZoomablePreview } from './ZoomablePreview';
+export { ConversionHistory } from './ConversionHistory';

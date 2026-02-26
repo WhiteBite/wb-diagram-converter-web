@@ -1,13 +1,14 @@
-import { Moon, Sun, Share2, Github, Globe } from 'lucide-react';
+import { Moon, Sun, Share2, Github, Globe, History } from 'lucide-react';
 import { useI18n } from '../i18n';
 
 interface HeaderProps {
     darkMode: boolean;
     onToggleDarkMode: () => void;
     onShare: () => void;
+    onShowHistory?: () => void;
 }
 
-export function Header({ darkMode, onToggleDarkMode, onShare }: HeaderProps) {
+export function Header({ darkMode, onToggleDarkMode, onShare, onShowHistory }: HeaderProps) {
     const { t, language, setLanguage } = useI18n();
 
     const toggleLanguage = () => {
@@ -35,6 +36,17 @@ export function Header({ darkMode, onToggleDarkMode, onShare }: HeaderProps) {
 
                     {/* Actions */}
                     <div className="flex items-center gap-2">
+                        {/* History Button */}
+                        {onShowHistory && (
+                            <button
+                                onClick={onShowHistory}
+                                className="btn btn-ghost p-2"
+                                title={t.history || 'History'}
+                            >
+                                <History className="w-5 h-5" />
+                            </button>
+                        )}
+
                         {/* Language Toggle */}
                         <button
                             onClick={toggleLanguage}
