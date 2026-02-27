@@ -238,19 +238,20 @@ export function Preview({ code, format, output, outputFormat }: PreviewProps) {
     const [isSourceLoading, setIsSourceLoading] = useState(false);
     const [isOutputLoading, setIsOutputLoading] = useState(false);
 
-    // Clear state on format change - show loading instead of error
-    useEffect(() => {
-        setSourceSvg('');
-        setSourceError(null);
-        setIsSourceLoading(true);
-    }, [format]);
+    const sourceRenderSeq = useRef(0);
+    const outputRenderSeq = useRef(0);
 
-    // Clear output state on outputFormat change - prevent flash of old error
+    // On format changes, keep last render visible and show loading instead.
+    // This prevents flicker when switching formats.
     useEffect(() => {
-        setOutputSvg('');
+        setSourceError(null);
+        if (code.trim()) setIsSourceLoading(true);
+    }, [format, code]);
+
+    useEffect(() => {
         setOutputError(null);
-        setIsOutputLoading(true);
-    }, [outputFormat]);
+        if (output) setIsOutputLoading(true);
+    }, [outputFormat, output]);
 
     // Render source preview (supports multiple formats)
     useEffect(() => {
@@ -262,6 +263,7 @@ export function Preview({ code, format, output, outputFormat }: PreviewProps) {
         }
 
         setIsSourceLoading(true);
+        const seq = ++sourceRenderSeq.current;
         const renderSource = async () => {
             try {
                 if (format === 'mermaid') {
@@ -275,49 +277,60 @@ export function Preview({ code, format, output, outputFormat }: PreviewProps) {
                     });
                     const id = `mermaid-source-${Date.now()}`;
                     const { svg } = await mermaid.default.render(id, code);
+                    if (seq !== sourceRenderSeq.current) return;
                     setSourceSvg(svg);
                     setSourceError(null);
                 } else if (format === 'plantuml') {
                     const svg = await renderPlantUmlSvg(code);
+                    if (seq !== sourceRenderSeq.current) return;
                     setSourceSvg(svg);
                     setSourceError(null);
                 } else if (format === 'dot') {
                     const svg = await renderDotSvg(code);
+                    if (seq !== sourceRenderSeq.current) return;
                     setSourceSvg(svg);
                     setSourceError(null);
                 } else if (format === 'd2') {
                     const svg = await renderViaKroki(code, 'd2');
+                    if (seq !== sourceRenderSeq.current) return;
                     setSourceSvg(svg);
                     setSourceError(null);
                 } else if (format === 'structurizr') {
                     const svg = await renderViaKroki(code, 'structurizr');
+                    if (seq !== sourceRenderSeq.current) return;
                     setSourceSvg(svg);
                     setSourceError(null);
                 } else if (format === 'bpmn') {
                     const svg = await renderViaKroki(code, 'bpmn');
+                    if (seq !== sourceRenderSeq.current) return;
                     setSourceSvg(svg);
                     setSourceError(null);
                 } else if (format === 'graphml') {
                     const svg = renderGraphmlSvg(code);
+                    if (seq !== sourceRenderSeq.current) return;
                     setSourceSvg(svg);
                     setSourceError(null);
                 } else if (format === 'lucidchart') {
                     // Lucidchart JSON - render as simple node graph
                     const svg = renderLucidchartSvg(code);
+                    if (seq !== sourceRenderSeq.current) return;
                     setSourceSvg(svg);
                     setSourceError(null);
                 } else if (format === 'excalidraw') {
                     const data = JSON.parse(code);
                     const svg = renderExcalidrawSvg(data.elements || []);
+                    if (seq !== sourceRenderSeq.current) return;
                     setSourceSvg(svg);
                     setSourceError(null);
                 } else if (format === 'drawio') {
                     const svg = renderDrawioSvg(code);
+                    if (seq !== sourceRenderSeq.current) return;
                     setSourceSvg(svg);
                     setSourceError(null);
                 } else {
                     // Unknown format - no preview
                     const localSvg = renderViaIR(code, format as InputFormat);
+                    if (seq !== sourceRenderSeq.current) return;
                     setSourceSvg(localSvg);
                     setSourceError(null);
                 }
@@ -325,6 +338,7 @@ export function Preview({ code, format, output, outputFormat }: PreviewProps) {
                 try {
                     // Fallback for any format: parse -> generic IR SVG
                     const localSvg = renderViaIR(code, format as InputFormat);
+                    if (seq !== sourceRenderSeq.current) return;
                     setSourceSvg(localSvg);
                     setSourceError(null);
                 } catch (fallbackErr) {
@@ -334,10 +348,11 @@ export function Preview({ code, format, output, outputFormat }: PreviewProps) {
                             : err instanceof Error
                               ? err.message
                               : 'Render failed';
+                    if (seq !== sourceRenderSeq.current) return;
                     setSourceError(message);
-                    setSourceSvg('');
                 }
             } finally {
+                if (seq !== sourceRenderSeq.current) return;
                 setIsSourceLoading(false);
             }
         };
@@ -347,8 +362,6 @@ export function Preview({ code, format, output, outputFormat }: PreviewProps) {
 
     // Render output preview
     useEffect(() => {
-        // Clear previous state immediately to prevent flash of old error
-        setOutputSvg('');
         setOutputError(null);
 
         if (!output) {
@@ -357,6 +370,7 @@ export function Preview({ code, format, output, outputFormat }: PreviewProps) {
         }
 
         setIsOutputLoading(true);
+        const seq = ++outputRenderSeq.current;
         const renderOutput = async () => {
             try {
                 if (outputFormat === 'mermaid') {
@@ -370,74 +384,90 @@ export function Preview({ code, format, output, outputFormat }: PreviewProps) {
                     });
                     const id = `mermaid-output-${Date.now()}`;
                     const { svg } = await mermaid.default.render(id, output);
+                    if (seq !== outputRenderSeq.current) return;
                     setOutputSvg(svg);
                     setOutputError(null);
                 } else if (outputFormat === 'excalidraw') {
                     const data = JSON.parse(output);
                     const svg = renderExcalidrawSvg(data.elements || []);
+                    if (seq !== outputRenderSeq.current) return;
                     setOutputSvg(svg);
                     setOutputError(null);
                 } else if (outputFormat === 'drawio') {
                     const svg = renderDrawioSvg(output);
+                    if (seq !== outputRenderSeq.current) return;
                     setOutputSvg(svg);
                     setOutputError(null);
                 } else if (outputFormat === 'plantuml') {
                     // PlantUML via public API
                     const svg = await renderPlantUmlSvg(output);
+                    if (seq !== outputRenderSeq.current) return;
                     setOutputSvg(svg);
                     setOutputError(null);
                 } else if (outputFormat === 'dot') {
                     // DOT via viz.js
                     const svg = await renderDotSvg(output);
+                    if (seq !== outputRenderSeq.current) return;
                     setOutputSvg(svg);
                     setOutputError(null);
                 } else if (outputFormat === 'svg') {
                     // SVG output - show directly
+                    if (seq !== outputRenderSeq.current) return;
                     setOutputSvg(output);
                     setOutputError(null);
                 } else if (outputFormat === 'png') {
                     // PNG output - it's a data URL, wrap in img tag
                     if (output.startsWith('data:image/png')) {
+                        if (seq !== outputRenderSeq.current) return;
                         setOutputSvg(`<img src="${output}" style="max-width:100%;height:auto;" />`);
                         setOutputError(null);
                     } else {
-                        setOutputSvg('');
+                        if (seq !== outputRenderSeq.current) return;
                         setOutputError(null);
                     }
                 } else if (outputFormat === 'd2') {
                     // D2 - try Kroki, fallback to local renderer
                     try {
                         const svg = await renderViaKroki(output, 'd2');
+                        if (seq !== outputRenderSeq.current) return;
                         setOutputSvg(svg);
                     } catch {
                         // Fallback to local D2 renderer
                         const svg = renderD2Svg(output);
+                        if (seq !== outputRenderSeq.current) return;
                         setOutputSvg(svg);
                     }
+                    if (seq !== outputRenderSeq.current) return;
                     setOutputError(null);
                 } else if (outputFormat === 'structurizr') {
                     // Structurizr - try Kroki, fallback to local renderer
                     try {
                         const svg = await renderViaKroki(output, 'structurizr');
+                        if (seq !== outputRenderSeq.current) return;
                         setOutputSvg(svg);
                     } catch {
                         // Fallback to local Structurizr renderer
                         const svg = renderStructurizrSvg(output);
+                        if (seq !== outputRenderSeq.current) return;
                         setOutputSvg(svg);
                     }
+                    if (seq !== outputRenderSeq.current) return;
                     setOutputError(null);
                 } else if (outputFormat === 'bpmn') {
                     // BPMN via Kroki API
                     const svg = await renderViaKroki(output, 'bpmn');
+                    if (seq !== outputRenderSeq.current) return;
                     setOutputSvg(svg);
                     setOutputError(null);
                 } else if (outputFormat === 'graphml') {
                     // GraphML - render as simple node graph
                     const svg = renderGraphmlSvg(output);
+                    if (seq !== outputRenderSeq.current) return;
                     setOutputSvg(svg);
                     setOutputError(null);
                 } else {
                     const localSvg = renderViaIR(output, outputFormat as InputFormat);
+                    if (seq !== outputRenderSeq.current) return;
                     setOutputSvg(localSvg);
                     setOutputError(null);
                 }
@@ -445,6 +475,7 @@ export function Preview({ code, format, output, outputFormat }: PreviewProps) {
                 try {
                     // Fallback for any output format that has parser
                     const localSvg = renderViaIR(output, outputFormat as InputFormat);
+                    if (seq !== outputRenderSeq.current) return;
                     setOutputSvg(localSvg);
                     setOutputError(null);
                 } catch (fallbackErr) {
@@ -454,10 +485,11 @@ export function Preview({ code, format, output, outputFormat }: PreviewProps) {
                             : err instanceof Error
                               ? err.message
                               : 'Render failed';
+                    if (seq !== outputRenderSeq.current) return;
                     setOutputError(message);
-                    setOutputSvg('');
                 }
             } finally {
+                if (seq !== outputRenderSeq.current) return;
                 setIsOutputLoading(false);
             }
         };
@@ -466,9 +498,6 @@ export function Preview({ code, format, output, outputFormat }: PreviewProps) {
     }, [output, outputFormat]);
 
     const renderSourceContent = () => {
-        if (isSourceLoading) {
-            return <div className="text-slate-400 text-sm animate-pulse">Rendering...</div>;
-        }
         if (sourceError) {
             return (
                 <div className="text-red-500 text-xs p-4 bg-red-50 dark:bg-red-900/20 rounded-lg max-w-sm text-center">
@@ -483,13 +512,20 @@ export function Preview({ code, format, output, outputFormat }: PreviewProps) {
         if (!sourceSvg) {
             return <div className="text-slate-400 text-sm">Rendering {format}...</div>;
         }
-        return <div dangerouslySetInnerHTML={{ __html: sourceSvg }} className="diagram-content" />;
+
+        return (
+            <div className="relative h-full">
+                <div dangerouslySetInnerHTML={{ __html: sourceSvg }} className="diagram-content" />
+                {isSourceLoading && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-white/60 dark:bg-slate-900/60 backdrop-blur-[1px]">
+                        <div className="text-slate-400 text-sm animate-pulse">Rendering…</div>
+                    </div>
+                )}
+            </div>
+        );
     };
 
     const renderOutputContent = () => {
-        if (isOutputLoading) {
-            return <div className="text-slate-400 text-sm animate-pulse">Rendering...</div>;
-        }
         if (outputError) {
             return (
                 <div className="text-red-500 text-xs p-4 bg-red-50 dark:bg-red-900/20 rounded-lg max-w-sm text-center">
@@ -500,7 +536,17 @@ export function Preview({ code, format, output, outputFormat }: PreviewProps) {
         }
         if (outputSvg) {
             return (
-                <div dangerouslySetInnerHTML={{ __html: outputSvg }} className="diagram-content" />
+                <div className="relative h-full">
+                    <div
+                        dangerouslySetInnerHTML={{ __html: outputSvg }}
+                        className="diagram-content"
+                    />
+                    {isOutputLoading && (
+                        <div className="absolute inset-0 flex items-center justify-center bg-white/60 dark:bg-slate-900/60 backdrop-blur-[1px]">
+                            <div className="text-slate-400 text-sm animate-pulse">Rendering…</div>
+                        </div>
+                    )}
+                </div>
             );
         }
         if (!output) {
