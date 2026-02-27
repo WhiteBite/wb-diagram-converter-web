@@ -1,10 +1,20 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
-import {
-    Maximize2, ZoomIn, ZoomOut, RotateCcw,
-    Columns, Grid3X3, Image, Move
-} from 'lucide-react';
+import { Maximize2, ZoomIn, ZoomOut, RotateCcw, Columns, Grid3X3, Image, Move } from 'lucide-react';
 import { FullscreenModal } from './FullscreenModal';
 import pako from 'pako';
+import {
+    parseMermaid,
+    parseDrawio,
+    parseExcalidraw,
+    parsePlantUML,
+    parseDot,
+    parseD2,
+    parseStructurizr,
+    parseBpmn,
+    parseGraphml,
+    parseLucidchart,
+} from '@whitebite/diagram-converter';
+import type { Diagram, InputFormat } from '@whitebite/diagram-converter';
 
 interface PreviewProps {
     code: string;
@@ -26,7 +36,12 @@ interface DiagramViewerProps {
 }
 
 // Improved DiagramViewer with better pan/zoom
-function DiagramViewer({ content, svgContent, className = '', showGrid = true }: DiagramViewerProps) {
+function DiagramViewer({
+    content,
+    svgContent,
+    className = '',
+    showGrid = true,
+}: DiagramViewerProps) {
     const [state, setState] = useState<ZoomPanState>({ zoom: 1, pan: { x: 0, y: 0 } });
     const [isPanning, setIsPanning] = useState(false);
     const [gridEnabled, setGridEnabled] = useState(showGrid);
@@ -70,7 +85,7 @@ function DiagramViewer({ content, svgContent, className = '', showGrid = true }:
         if (e.shiftKey) {
             setState(s => ({
                 ...s,
-                pan: { x: s.pan.x - e.deltaY, y: s.pan.y }
+                pan: { x: s.pan.x - e.deltaY, y: s.pan.y },
             }));
         } else {
             const delta = e.deltaY > 0 ? 0.9 : 1.1;
@@ -86,13 +101,16 @@ function DiagramViewer({ content, svgContent, className = '', showGrid = true }:
         }
     }, []);
 
-    const handleMouseMove = useCallback((e: React.MouseEvent) => {
-        if (!isPanning) return;
-        const dx = e.clientX - lastPanPos.current.x;
-        const dy = e.clientY - lastPanPos.current.y;
-        lastPanPos.current = { x: e.clientX, y: e.clientY };
-        setState(s => ({ ...s, pan: { x: s.pan.x + dx, y: s.pan.y + dy } }));
-    }, [isPanning]);
+    const handleMouseMove = useCallback(
+        (e: React.MouseEvent) => {
+            if (!isPanning) return;
+            const dx = e.clientX - lastPanPos.current.x;
+            const dy = e.clientY - lastPanPos.current.y;
+            lastPanPos.current = { x: e.clientX, y: e.clientY };
+            setState(s => ({ ...s, pan: { x: s.pan.x + dx, y: s.pan.y + dy } }));
+        },
+        [isPanning]
+    );
 
     const handleMouseUp = useCallback(() => setIsPanning(false), []);
 
@@ -130,16 +148,30 @@ function DiagramViewer({ content, svgContent, className = '', showGrid = true }:
             {/* Compact Toolbar */}
             <div className="flex items-center justify-between px-2 py-1.5 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700 flex-shrink-0">
                 <div className="flex items-center gap-0.5">
-                    <button onClick={handleZoomOut} className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700" title="Zoom Out (Ctrl+Scroll)">
+                    <button
+                        onClick={handleZoomOut}
+                        className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700"
+                        title="Zoom Out (Ctrl+Scroll)"
+                    >
                         <ZoomOut className="w-3.5 h-3.5 text-slate-500" />
                     </button>
-                    <span className="text-[10px] text-slate-500 font-mono w-8 text-center">{Math.round(state.zoom * 100)}%</span>
-                    <button onClick={handleZoomIn} className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700" title="Zoom In">
+                    <span className="text-[10px] text-slate-500 font-mono w-8 text-center">
+                        {Math.round(state.zoom * 100)}%
+                    </span>
+                    <button
+                        onClick={handleZoomIn}
+                        className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700"
+                        title="Zoom In"
+                    >
                         <ZoomIn className="w-3.5 h-3.5 text-slate-500" />
                     </button>
                 </div>
                 <div className="flex items-center gap-0.5">
-                    <button onClick={handleReset} className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700" title="Reset View">
+                    <button
+                        onClick={handleReset}
+                        className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700"
+                        title="Reset View"
+                    >
                         <RotateCcw className="w-3.5 h-3.5 text-slate-500" />
                     </button>
                     <button
@@ -150,7 +182,11 @@ function DiagramViewer({ content, svgContent, className = '', showGrid = true }:
                         <Grid3X3 className="w-3.5 h-3.5" />
                     </button>
                     {svgContent && (
-                        <button onClick={handleExportPng} className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700" title="Export PNG">
+                        <button
+                            onClick={handleExportPng}
+                            className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700"
+                            title="Export PNG"
+                        >
                             <Image className="w-3.5 h-3.5 text-slate-500" />
                         </button>
                     )}
@@ -232,7 +268,9 @@ export function Preview({ code, format, output, outputFormat }: PreviewProps) {
                     const mermaid = await import('mermaid');
                     mermaid.default.initialize({
                         startOnLoad: false,
-                        theme: document.documentElement.classList.contains('dark') ? 'dark' : 'default',
+                        theme: document.documentElement.classList.contains('dark')
+                            ? 'dark'
+                            : 'default',
                         securityLevel: 'loose',
                     });
                     const id = `mermaid-source-${Date.now()}`;
@@ -279,12 +317,26 @@ export function Preview({ code, format, output, outputFormat }: PreviewProps) {
                     setSourceError(null);
                 } else {
                     // Unknown format - no preview
-                    setSourceSvg('');
+                    const localSvg = renderViaIR(code, format as InputFormat);
+                    setSourceSvg(localSvg);
                     setSourceError(null);
                 }
             } catch (err) {
-                setSourceError(err instanceof Error ? err.message : 'Render failed');
-                setSourceSvg('');
+                try {
+                    // Fallback for any format: parse -> generic IR SVG
+                    const localSvg = renderViaIR(code, format as InputFormat);
+                    setSourceSvg(localSvg);
+                    setSourceError(null);
+                } catch (fallbackErr) {
+                    const message =
+                        fallbackErr instanceof Error
+                            ? fallbackErr.message
+                            : err instanceof Error
+                              ? err.message
+                              : 'Render failed';
+                    setSourceError(message);
+                    setSourceSvg('');
+                }
             } finally {
                 setIsSourceLoading(false);
             }
@@ -311,7 +363,9 @@ export function Preview({ code, format, output, outputFormat }: PreviewProps) {
                     const mermaid = await import('mermaid');
                     mermaid.default.initialize({
                         startOnLoad: false,
-                        theme: document.documentElement.classList.contains('dark') ? 'dark' : 'default',
+                        theme: document.documentElement.classList.contains('dark')
+                            ? 'dark'
+                            : 'default',
                         securityLevel: 'loose',
                     });
                     const id = `mermaid-output-${Date.now()}`;
@@ -383,12 +437,26 @@ export function Preview({ code, format, output, outputFormat }: PreviewProps) {
                     setOutputSvg(svg);
                     setOutputError(null);
                 } else {
-                    setOutputSvg('');
+                    const localSvg = renderViaIR(output, outputFormat as InputFormat);
+                    setOutputSvg(localSvg);
                     setOutputError(null);
                 }
             } catch (err) {
-                setOutputError(err instanceof Error ? err.message : 'Render failed');
-                setOutputSvg('');
+                try {
+                    // Fallback for any output format that has parser
+                    const localSvg = renderViaIR(output, outputFormat as InputFormat);
+                    setOutputSvg(localSvg);
+                    setOutputError(null);
+                } catch (fallbackErr) {
+                    const message =
+                        fallbackErr instanceof Error
+                            ? fallbackErr.message
+                            : err instanceof Error
+                              ? err.message
+                              : 'Render failed';
+                    setOutputError(message);
+                    setOutputSvg('');
+                }
             } finally {
                 setIsOutputLoading(false);
             }
@@ -431,7 +499,9 @@ export function Preview({ code, format, output, outputFormat }: PreviewProps) {
             );
         }
         if (outputSvg) {
-            return <div dangerouslySetInnerHTML={{ __html: outputSvg }} className="diagram-content" />;
+            return (
+                <div dangerouslySetInnerHTML={{ __html: outputSvg }} className="diagram-content" />
+            );
         }
         if (!output) {
             return <div className="text-slate-400 text-sm">No output yet</div>;
@@ -450,14 +520,15 @@ export function Preview({ code, format, output, outputFormat }: PreviewProps) {
             {/* View Mode Header */}
             <div className="flex items-center justify-between px-3 py-2 border-b border-slate-200 dark:border-slate-700 flex-shrink-0 bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20">
                 <div className="flex items-center gap-1.5">
-                    {(['split', 'source', 'output'] as const).map((mode) => (
+                    {(['split', 'source', 'output'] as const).map(mode => (
                         <button
                             key={mode}
                             onClick={() => setViewMode(mode)}
-                            className={`px-2.5 py-1 text-xs font-medium rounded transition-all ${viewMode === mode
-                                ? 'bg-indigo-600 text-white shadow-sm'
-                                : 'bg-white/80 dark:bg-slate-700/80 hover:bg-white dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300'
-                                } ${mode === 'split' ? 'flex items-center gap-1' : ''}`}
+                            className={`px-2.5 py-1 text-xs font-medium rounded transition-all ${
+                                viewMode === mode
+                                    ? 'bg-indigo-600 text-white shadow-sm'
+                                    : 'bg-white/80 dark:bg-slate-700/80 hover:bg-white dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300'
+                            } ${mode === 'split' ? 'flex items-center gap-1' : ''}`}
                         >
                             {mode === 'split' && <Columns className="w-3 h-3" />}
                             {mode.charAt(0).toUpperCase() + mode.slice(1)}
@@ -476,7 +547,9 @@ export function Preview({ code, format, output, outputFormat }: PreviewProps) {
             {/* Content */}
             <div className="flex-1 min-h-0 flex">
                 {(isSplit || viewMode === 'source') && (
-                    <div className={`flex flex-col ${isSplit ? 'w-1/2 border-r border-slate-200 dark:border-slate-700' : 'w-full'}`}>
+                    <div
+                        className={`flex flex-col ${isSplit ? 'w-1/2 border-r border-slate-200 dark:border-slate-700' : 'w-full'}`}
+                    >
                         <div className="px-2 py-1 text-[10px] font-semibold text-slate-400 uppercase tracking-wider bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-700/50">
                             Source • {format}
                         </div>
@@ -501,10 +574,14 @@ export function Preview({ code, format, output, outputFormat }: PreviewProps) {
             <FullscreenModal
                 isOpen={fullscreenPanel !== null}
                 onClose={() => setFullscreenPanel(null)}
-                title={fullscreenPanel === 'source' ? `Source (${format})` : `Output (${outputFormat})`}
+                title={
+                    fullscreenPanel === 'source' ? `Source (${format})` : `Output (${outputFormat})`
+                }
             >
                 <DiagramViewer
-                    content={fullscreenPanel === 'source' ? renderSourceContent() : renderOutputContent()}
+                    content={
+                        fullscreenPanel === 'source' ? renderSourceContent() : renderOutputContent()
+                    }
                     svgContent={fullscreenPanel === 'source' ? sourceSvg : outputSvg}
                     className="h-full"
                 />
@@ -513,6 +590,127 @@ export function Preview({ code, format, output, outputFormat }: PreviewProps) {
     );
 }
 
+function renderViaIR(source: string, format: InputFormat): string {
+    const parser = getParser(format);
+    if (!parser) {
+        throw new Error(`Preview is not supported for format: ${format}`);
+    }
+
+    const diagram = parser(source);
+    return renderDiagramToSvg(diagram);
+}
+
+function getParser(format: InputFormat): ((source: string) => Diagram) | null {
+    switch (format) {
+        case 'mermaid':
+            return parseMermaid;
+        case 'drawio':
+            return parseDrawio;
+        case 'excalidraw':
+            return parseExcalidraw;
+        case 'plantuml':
+            return parsePlantUML;
+        case 'dot':
+            return parseDot;
+        case 'd2':
+            return parseD2;
+        case 'structurizr':
+            return parseStructurizr;
+        case 'bpmn':
+            return parseBpmn;
+        case 'graphml':
+            return parseGraphml;
+        case 'lucidchart':
+            return parseLucidchart;
+        default:
+            return null;
+    }
+}
+
+function renderDiagramToSvg(diagram: Diagram): string {
+    const padding = 40;
+    const defaultNodeWidth = 140;
+    const defaultNodeHeight = 64;
+
+    const positions = new Map<
+        string,
+        { x: number; y: number; width: number; height: number; label: string; shape: string }
+    >();
+
+    diagram.nodes.forEach((node, index) => {
+        const col = index % 4;
+        const row = Math.floor(index / 4);
+        const width = node.size?.width ?? defaultNodeWidth;
+        const height = node.size?.height ?? defaultNodeHeight;
+        const x = node.position?.x ?? 60 + col * 200;
+        const y = node.position?.y ?? 60 + row * 120;
+
+        positions.set(node.id, {
+            x,
+            y,
+            width,
+            height,
+            label: node.label || node.id,
+            shape: node.shape,
+        });
+    });
+
+    const allNodes = [...positions.values()];
+    const minX = allNodes.length ? Math.min(...allNodes.map(n => n.x)) : 0;
+    const minY = allNodes.length ? Math.min(...allNodes.map(n => n.y)) : 0;
+    const maxX = allNodes.length ? Math.max(...allNodes.map(n => n.x + n.width)) : 400;
+    const maxY = allNodes.length ? Math.max(...allNodes.map(n => n.y + n.height)) : 240;
+    const viewWidth = Math.max(maxX - minX + padding * 2, 360);
+    const viewHeight = Math.max(maxY - minY + padding * 2, 220);
+    const offsetX = -minX + padding;
+    const offsetY = -minY + padding;
+
+    let svg = `<svg viewBox="0 0 ${viewWidth} ${viewHeight}" width="${viewWidth}" height="${viewHeight}" xmlns="http://www.w3.org/2000/svg">`;
+    svg += `<defs>
+        <filter id="irshadow"><feDropShadow dx="1" dy="2" stdDeviation="2" flood-opacity="0.12"/></filter>
+        <marker id="irarrow" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polygon points="0 0, 10 3.5, 0 7" fill="#64748b"/></marker>
+    </defs>`;
+
+    // edges first
+    for (const edge of diagram.edges) {
+        const src = positions.get(edge.source);
+        const tgt = positions.get(edge.target);
+        if (!src || !tgt) continue;
+
+        const sx = src.x + offsetX + src.width;
+        const sy = src.y + offsetY + src.height / 2;
+        const tx = tgt.x + offsetX;
+        const ty = tgt.y + offsetY + tgt.height / 2;
+        const mx = (sx + tx) / 2;
+
+        svg += `<path d="M ${sx} ${sy} C ${mx} ${sy}, ${mx} ${ty}, ${tx} ${ty}" fill="none" stroke="#94a3b8" stroke-width="2" marker-end="url(#irarrow)"/>`;
+
+        if (edge.label) {
+            svg += `<text x="${mx}" y="${(sy + ty) / 2 - 8}" text-anchor="middle" fill="#64748b" font-size="10" font-family="system-ui">${escapeHtml(edge.label)}</text>`;
+        }
+    }
+
+    for (const node of positions.values()) {
+        const x = node.x + offsetX;
+        const y = node.y + offsetY;
+        const { width: w, height: h, label, shape } = node;
+
+        if (shape === 'ellipse' || shape === 'circle') {
+            svg += `<ellipse cx="${x + w / 2}" cy="${y + h / 2}" rx="${w / 2}" ry="${h / 2}" fill="#dbeafe" stroke="#3b82f6" stroke-width="2" filter="url(#irshadow)"/>`;
+        } else if (shape === 'diamond') {
+            svg += `<polygon points="${x + w / 2},${y} ${x + w},${y + h / 2} ${x + w / 2},${y + h} ${x},${y + h / 2}" fill="#fef3c7" stroke="#f59e0b" stroke-width="2" filter="url(#irshadow)"/>`;
+        } else if (shape === 'actor') {
+            svg += `<circle cx="${x + w / 2}" cy="${y + 16}" r="12" fill="#dbeafe" stroke="#3b82f6" stroke-width="2"/>`;
+            svg += `<path d="M ${x + w / 2 - 18} ${y + h - 10} Q ${x + w / 2} ${y + 36} ${x + w / 2 + 18} ${y + h - 10}" fill="#dbeafe" stroke="#3b82f6" stroke-width="2"/>`;
+        } else {
+            svg += `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="8" fill="#e0e7ff" stroke="#6366f1" stroke-width="2" filter="url(#irshadow)"/>`;
+        }
+
+        svg += `<text x="${x + w / 2}" y="${y + h / 2}" text-anchor="middle" dominant-baseline="central" fill="#1e293b" font-size="12" font-family="system-ui">${escapeHtml(label)}</text>`;
+    }
+
+    return svg + '</svg>';
+}
 
 // =============================================================================
 // SVG Renderers
@@ -537,7 +735,10 @@ function renderExcalidrawSvg(elements: ExcalidrawEl[]): string {
     const elementMap = new Map<string, ExcalidrawEl>();
     elements.forEach(el => elementMap.set(el.id, el));
 
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    let minX = Infinity,
+        minY = Infinity,
+        maxX = -Infinity,
+        maxY = -Infinity;
     elements.forEach(el => {
         if (el.type === 'text' && el.containerId) return;
         if (el.x !== undefined && el.y !== undefined) {
@@ -558,7 +759,12 @@ function renderExcalidrawSvg(elements: ExcalidrawEl[]): string {
         }
     });
 
-    if (!isFinite(minX)) { minX = 0; minY = 0; maxX = 400; maxY = 300; }
+    if (!isFinite(minX)) {
+        minX = 0;
+        minY = 0;
+        maxX = 400;
+        maxY = 300;
+    }
 
     const padding = 40;
     const viewWidth = Math.max(maxX - minX + padding * 2, 300);
@@ -572,29 +778,49 @@ function renderExcalidrawSvg(elements: ExcalidrawEl[]): string {
         <marker id="arrow" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polygon points="0 0, 10 3.5, 0 7" fill="#475569"/></marker>
     </defs>`;
 
-    const findText = (id: string) => elements.find(el => el.type === 'text' && el.containerId === id)?.text || null;
+    const findText = (id: string) =>
+        elements.find(el => el.type === 'text' && el.containerId === id)?.text || null;
 
     // Shapes
     elements.forEach(el => {
         if (['text', 'arrow', 'line'].includes(el.type)) return;
-        const x = el.x + offsetX, y = el.y + offsetY;
-        const w = el.width || 100, h = el.height || 60;
+        const x = el.x + offsetX,
+            y = el.y + offsetY;
+        const w = el.width || 100,
+            h = el.height || 60;
         const label = findText(el.id);
-        const fill = el.backgroundColor && el.backgroundColor !== 'transparent' ? el.backgroundColor : el.type === 'ellipse' ? '#d1fae5' : el.type === 'diamond' ? '#fef3c7' : '#e0e7ff';
-        const stroke = el.strokeColor || (el.type === 'ellipse' ? '#10b981' : el.type === 'diamond' ? '#f59e0b' : '#6366f1');
+        const fill =
+            el.backgroundColor && el.backgroundColor !== 'transparent'
+                ? el.backgroundColor
+                : el.type === 'ellipse'
+                  ? '#d1fae5'
+                  : el.type === 'diamond'
+                    ? '#fef3c7'
+                    : '#e0e7ff';
+        const stroke =
+            el.strokeColor ||
+            (el.type === 'ellipse' ? '#10b981' : el.type === 'diamond' ? '#f59e0b' : '#6366f1');
 
-        if (el.type === 'rectangle') svg += `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${fill}" stroke="${stroke}" stroke-width="2" rx="6" filter="url(#shadow)"/>`;
-        else if (el.type === 'ellipse') svg += `<ellipse cx="${x + w / 2}" cy="${y + h / 2}" rx="${w / 2}" ry="${h / 2}" fill="${fill}" stroke="${stroke}" stroke-width="2" filter="url(#shadow)"/>`;
-        else if (el.type === 'diamond') svg += `<polygon points="${x + w / 2},${y} ${x + w},${y + h / 2} ${x + w / 2},${y + h} ${x},${y + h / 2}" fill="${fill}" stroke="${stroke}" stroke-width="2" filter="url(#shadow)"/>`;
+        if (el.type === 'rectangle')
+            svg += `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${fill}" stroke="${stroke}" stroke-width="2" rx="6" filter="url(#shadow)"/>`;
+        else if (el.type === 'ellipse')
+            svg += `<ellipse cx="${x + w / 2}" cy="${y + h / 2}" rx="${w / 2}" ry="${h / 2}" fill="${fill}" stroke="${stroke}" stroke-width="2" filter="url(#shadow)"/>`;
+        else if (el.type === 'diamond')
+            svg += `<polygon points="${x + w / 2},${y} ${x + w},${y + h / 2} ${x + w / 2},${y + h} ${x},${y + h / 2}" fill="${fill}" stroke="${stroke}" stroke-width="2" filter="url(#shadow)"/>`;
 
-        if (label) svg += `<text x="${x + w / 2}" y="${y + h / 2}" text-anchor="middle" dominant-baseline="central" fill="#1e293b" font-size="13" font-family="system-ui">${label.replace(/[<>&]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c] || c))}</text>`;
+        if (label)
+            svg += `<text x="${x + w / 2}" y="${y + h / 2}" text-anchor="middle" dominant-baseline="central" fill="#1e293b" font-size="13" font-family="system-ui">${label.replace(/[<>&]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' })[c] || c)}</text>`;
     });
 
     // Arrows
     elements.forEach(el => {
         if (el.type !== 'arrow' && el.type !== 'line') return;
-        const x = el.x + offsetX, y = el.y + offsetY;
-        const pts = el.points || [[0, 0], [100, 0]];
+        const x = el.x + offsetX,
+            y = el.y + offsetY;
+        const pts = el.points || [
+            [0, 0],
+            [100, 0],
+        ];
         if (pts.length < 2) return;
         svg += `<line x1="${x + pts[0][0]}" y1="${y + pts[0][1]}" x2="${x + pts[pts.length - 1][0]}" y2="${y + pts[pts.length - 1][1]}" stroke="${el.strokeColor || '#64748b'}" stroke-width="2" marker-end="url(#arrow)"/>`;
     });
@@ -602,13 +828,21 @@ function renderExcalidrawSvg(elements: ExcalidrawEl[]): string {
     // Standalone text
     elements.forEach(el => {
         if (el.type !== 'text' || el.containerId) return;
-        if (el.text) svg += `<text x="${el.x + offsetX}" y="${el.y + offsetY}" fill="#1e293b" font-size="${el.fontSize || 14}" font-family="system-ui">${el.text.replace(/[<>&]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c] || c))}</text>`;
+        if (el.text)
+            svg += `<text x="${el.x + offsetX}" y="${el.y + offsetY}" fill="#1e293b" font-size="${el.fontSize || 14}" font-family="system-ui">${el.text.replace(/[<>&]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' })[c] || c)}</text>`;
     });
 
     return svg + '</svg>';
 }
 
-interface DrawioNode { x: number; y: number; width: number; height: number; label: string; style: string; }
+interface DrawioNode {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    label: string;
+    style: string;
+}
 
 function renderDrawioSvg(xmlString: string): string {
     const parser = new DOMParser();
@@ -616,7 +850,10 @@ function renderDrawioSvg(xmlString: string): string {
     const cells = doc.querySelectorAll('mxCell[vertex="1"], mxCell[edge="1"]');
     if (cells.length === 0) throw new Error('No cells');
 
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    let minX = Infinity,
+        minY = Infinity,
+        maxX = -Infinity,
+        maxY = -Infinity;
     const nodeMap = new Map<string, DrawioNode>();
 
     cells.forEach(cell => {
@@ -627,9 +864,18 @@ function renderDrawioSvg(xmlString: string): string {
             const w = parseFloat(geo.getAttribute('width') || '120');
             const h = parseFloat(geo.getAttribute('height') || '60');
             if (!isNaN(x) && !isNaN(y)) {
-                minX = Math.min(minX, x); minY = Math.min(minY, y);
-                maxX = Math.max(maxX, x + w); maxY = Math.max(maxY, y + h);
-                nodeMap.set(cell.getAttribute('id') || '', { x, y, width: w, height: h, label: cell.getAttribute('value') || '', style: cell.getAttribute('style') || '' });
+                minX = Math.min(minX, x);
+                minY = Math.min(minY, y);
+                maxX = Math.max(maxX, x + w);
+                maxY = Math.max(maxY, y + h);
+                nodeMap.set(cell.getAttribute('id') || '', {
+                    x,
+                    y,
+                    width: w,
+                    height: h,
+                    label: cell.getAttribute('value') || '',
+                    style: cell.getAttribute('style') || '',
+                });
             }
         }
     });
@@ -637,7 +883,8 @@ function renderDrawioSvg(xmlString: string): string {
     const padding = 40;
     const viewWidth = Math.max(maxX - minX + padding * 2, 300);
     const viewHeight = Math.max(maxY - minY + padding * 2, 200);
-    const offsetX = -minX + padding, offsetY = -minY + padding;
+    const offsetX = -minX + padding,
+        offsetY = -minY + padding;
 
     let svg = `<svg viewBox="0 0 ${viewWidth} ${viewHeight}" width="${viewWidth}" height="${viewHeight}" xmlns="http://www.w3.org/2000/svg">`;
     svg += `<defs><filter id="ds"><feDropShadow dx="1" dy="2" stdDeviation="3" flood-opacity="0.1"/></filter><marker id="da" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polygon points="0 0, 10 3.5, 0 7" fill="#6366f1"/></marker></defs>`;
@@ -648,33 +895,48 @@ function renderDrawioSvg(xmlString: string): string {
         const src = nodeMap.get(cell.getAttribute('source') || '');
         const tgt = nodeMap.get(cell.getAttribute('target') || '');
         if (!src || !tgt) return;
-        const sx = src.x + offsetX + src.width, sy = src.y + offsetY + src.height / 2;
-        const tx = tgt.x + offsetX, ty = tgt.y + offsetY + tgt.height / 2;
+        const sx = src.x + offsetX + src.width,
+            sy = src.y + offsetY + src.height / 2;
+        const tx = tgt.x + offsetX,
+            ty = tgt.y + offsetY + tgt.height / 2;
         const mx = (sx + tx) / 2;
         svg += `<path d="M ${sx} ${sy} C ${mx} ${sy}, ${mx} ${ty}, ${tx} ${ty}" fill="none" stroke="#94a3b8" stroke-width="2" marker-end="url(#da)"/>`;
         const label = cell.getAttribute('value');
-        if (label) svg += `<text x="${mx}" y="${(sy + ty) / 2 - 8}" text-anchor="middle" fill="#64748b" font-size="10" font-family="system-ui">${label}</text>`;
+        if (label)
+            svg += `<text x="${mx}" y="${(sy + ty) / 2 - 8}" text-anchor="middle" fill="#64748b" font-size="10" font-family="system-ui">${label}</text>`;
     });
 
     // Nodes
     nodeMap.forEach(node => {
-        const x = node.x + offsetX, y = node.y + offsetY;
+        const x = node.x + offsetX,
+            y = node.y + offsetY;
         const { width: w, height: h, label, style } = node;
-        const isRhombus = style.includes('rhombus'), isEllipse = style.includes('ellipse'), isRounded = style.includes('rounded=1');
-        let fill = '#e0e7ff', stroke = '#6366f1';
-        if (isRhombus) { fill = '#fef3c7'; stroke = '#f59e0b'; }
-        else if (isEllipse) { fill = '#d1fae5'; stroke = '#10b981'; }
+        const isRhombus = style.includes('rhombus'),
+            isEllipse = style.includes('ellipse'),
+            isRounded = style.includes('rounded=1');
+        let fill = '#e0e7ff',
+            stroke = '#6366f1';
+        if (isRhombus) {
+            fill = '#fef3c7';
+            stroke = '#f59e0b';
+        } else if (isEllipse) {
+            fill = '#d1fae5';
+            stroke = '#10b981';
+        }
 
-        if (isRhombus) svg += `<polygon points="${x + w / 2},${y} ${x + w},${y + h / 2} ${x + w / 2},${y + h} ${x},${y + h / 2}" fill="${fill}" stroke="${stroke}" stroke-width="2" filter="url(#ds)"/>`;
-        else if (isEllipse) svg += `<ellipse cx="${x + w / 2}" cy="${y + h / 2}" rx="${w / 2}" ry="${h / 2}" fill="${fill}" stroke="${stroke}" stroke-width="2" filter="url(#ds)"/>`;
-        else svg += `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${fill}" stroke="${stroke}" stroke-width="2" rx="${isRounded ? 8 : 4}" filter="url(#ds)"/>`;
+        if (isRhombus)
+            svg += `<polygon points="${x + w / 2},${y} ${x + w},${y + h / 2} ${x + w / 2},${y + h} ${x},${y + h / 2}" fill="${fill}" stroke="${stroke}" stroke-width="2" filter="url(#ds)"/>`;
+        else if (isEllipse)
+            svg += `<ellipse cx="${x + w / 2}" cy="${y + h / 2}" rx="${w / 2}" ry="${h / 2}" fill="${fill}" stroke="${stroke}" stroke-width="2" filter="url(#ds)"/>`;
+        else
+            svg += `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${fill}" stroke="${stroke}" stroke-width="2" rx="${isRounded ? 8 : 4}" filter="url(#ds)"/>`;
 
-        if (label) svg += `<text x="${x + w / 2}" y="${y + h / 2}" text-anchor="middle" dominant-baseline="central" fill="#1e293b" font-size="12" font-family="system-ui">${label}</text>`;
+        if (label)
+            svg += `<text x="${x + w / 2}" y="${y + h / 2}" text-anchor="middle" dominant-baseline="central" fill="#1e293b" font-size="12" font-family="system-ui">${label}</text>`;
     });
 
     return svg + '</svg>';
 }
-
 
 // PlantUML rendering via public API
 async function renderPlantUmlSvg(code: string): Promise<string> {
@@ -695,7 +957,9 @@ function plantumlEncode(text: string): string {
 
     // Use pako for deflate if available, otherwise use simple base64
     // For now, use the ~h hex encoding which is simpler
-    const hex = Array.from(data).map(b => b.toString(16).padStart(2, '0')).join('');
+    const hex = Array.from(data)
+        .map(b => b.toString(16).padStart(2, '0'))
+        .join('');
     return '~h' + hex;
 }
 
@@ -706,7 +970,6 @@ async function renderDotSvg(code: string): Promise<string> {
     const viz = await instance();
     return viz.renderString(code, { format: 'svg', engine: 'dot' });
 }
-
 
 // Kroki API for D2, Structurizr, BPMN rendering
 // Kroki requires: deflate -> base64url encoding
@@ -720,10 +983,7 @@ async function renderViaKroki(code: string, format: string): Promise<string> {
 
     // Convert to base64url (URL-safe base64)
     const base64 = btoa(String.fromCharCode(...compressed));
-    const base64url = base64
-        .replace(/\+/g, '-')
-        .replace(/\//g, '_')
-        .replace(/=+$/, '');
+    const base64url = base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 
     const url = `https://kroki.io/${format}/svg/${base64url}`;
 
@@ -858,13 +1118,17 @@ function renderGraphmlSvg(xmlString: string): string {
 }
 
 function escapeHtml(str: string): string {
-    return str.replace(/[<>&"']/g, c => ({
-        '<': '&lt;',
-        '>': '&gt;',
-        '&': '&amp;',
-        '"': '&quot;',
-        "'": '&#39;',
-    }[c] || c));
+    return str.replace(
+        /[<>&"']/g,
+        c =>
+            ({
+                '<': '&lt;',
+                '>': '&gt;',
+                '&': '&amp;',
+                '"': '&quot;',
+                "'": '&#39;',
+            })[c] || c
+    );
 }
 
 // Lucidchart JSON simple SVG renderer
@@ -910,15 +1174,16 @@ function renderLucidchartSvg(jsonString: string): string {
 
     shapes.forEach(shape => {
         const bb = shape.boundingBox;
-        const x = bb?.x ?? (50 + (idx % 4) * 180);
-        const y = bb?.y ?? (50 + Math.floor(idx / 4) * 100);
+        const x = bb?.x ?? 50 + (idx % 4) * 180;
+        const y = bb?.y ?? 50 + Math.floor(idx / 4) * 100;
         const w = bb?.w ?? 140;
         const h = bb?.h ?? 60;
 
         nodes.push({
             id: shape.id,
             label: shape.text || shape.id,
-            x, y,
+            x,
+            y,
             width: w,
             height: h,
         });
@@ -975,7 +1240,6 @@ function renderLucidchartSvg(jsonString: string): string {
     return svg + '</svg>';
 }
 
-
 // D2 simple SVG renderer (fallback when Kroki fails)
 function renderD2Svg(code: string): string {
     interface D2Node {
@@ -1006,7 +1270,9 @@ function renderD2Svg(code: string): string {
         if (!trimmed || trimmed.startsWith('#')) continue;
 
         // Edge pattern: A -> B or A -- B or A <-> B
-        const edgeMatch = trimmed.match(/^([a-zA-Z0-9_]+)\s*(->|--|<->|<-)\s*([a-zA-Z0-9_]+)(?:\s*:\s*(.+))?$/);
+        const edgeMatch = trimmed.match(
+            /^([a-zA-Z0-9_]+)\s*(->|--|<->|<-)\s*([a-zA-Z0-9_]+)(?:\s*:\s*(.+))?$/
+        );
         if (edgeMatch) {
             const [, src, , tgt, label] = edgeMatch;
 
@@ -1014,7 +1280,14 @@ function renderD2Svg(code: string): string {
             if (!nodeMap.has(src)) {
                 const col = nodeIdx % 4;
                 const row = Math.floor(nodeIdx / 4);
-                const node: D2Node = { id: src, label: src, x: 50 + col * 180, y: 50 + row * 100, width: 140, height: 60 };
+                const node: D2Node = {
+                    id: src,
+                    label: src,
+                    x: 50 + col * 180,
+                    y: 50 + row * 100,
+                    width: 140,
+                    height: 60,
+                };
                 nodes.push(node);
                 nodeMap.set(src, node);
                 nodeIdx++;
@@ -1022,7 +1295,14 @@ function renderD2Svg(code: string): string {
             if (!nodeMap.has(tgt)) {
                 const col = nodeIdx % 4;
                 const row = Math.floor(nodeIdx / 4);
-                const node: D2Node = { id: tgt, label: tgt, x: 50 + col * 180, y: 50 + row * 100, width: 140, height: 60 };
+                const node: D2Node = {
+                    id: tgt,
+                    label: tgt,
+                    x: 50 + col * 180,
+                    y: 50 + row * 100,
+                    width: 140,
+                    height: 60,
+                };
                 nodes.push(node);
                 nodeMap.set(tgt, node);
                 nodeIdx++;
@@ -1040,7 +1320,14 @@ function renderD2Svg(code: string): string {
                 const col = nodeIdx % 4;
                 const row = Math.floor(nodeIdx / 4);
                 const label = value.replace(/^["']|["']$/g, '');
-                const node: D2Node = { id, label, x: 50 + col * 180, y: 50 + row * 100, width: 140, height: 60 };
+                const node: D2Node = {
+                    id,
+                    label,
+                    x: 50 + col * 180,
+                    y: 50 + row * 100,
+                    width: 140,
+                    height: 60,
+                };
                 nodes.push(node);
                 nodeMap.set(id, node);
                 nodeIdx++;
@@ -1061,7 +1348,14 @@ function renderD2Svg(code: string): string {
             const id = simpleMatch[1];
             const col = nodeIdx % 4;
             const row = Math.floor(nodeIdx / 4);
-            const node: D2Node = { id, label: id, x: 50 + col * 180, y: 50 + row * 100, width: 140, height: 60 };
+            const node: D2Node = {
+                id,
+                label: id,
+                x: 50 + col * 180,
+                y: 50 + row * 100,
+                width: 140,
+                height: 60,
+            };
             nodes.push(node);
             nodeMap.set(id, node);
             nodeIdx++;
@@ -1151,7 +1445,9 @@ function renderStructurizrSvg(code: string): string {
         if (!trimmed || trimmed.startsWith('#') || trimmed.startsWith('//')) continue;
 
         // Person/SoftwareSystem/Container/Component definition
-        const elementMatch = trimmed.match(/^(person|softwareSystem|container|component)\s+([a-zA-Z0-9_]+)\s*=?\s*"([^"]+)"(?:\s+"([^"]+)")?/i);
+        const elementMatch = trimmed.match(
+            /^(person|softwareSystem|container|component)\s+([a-zA-Z0-9_]+)\s*=?\s*"([^"]+)"(?:\s+"([^"]+)")?/i
+        );
         if (elementMatch) {
             const [, type, id, label, desc] = elementMatch;
             const col = nodeIdx % 3;
