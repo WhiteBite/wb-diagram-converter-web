@@ -516,7 +516,10 @@ export function Preview({ code, format, output, outputFormat }: PreviewProps) {
     const isSplit = viewMode === 'split';
 
     return (
-        <div className="h-full flex flex-col bg-white dark:bg-slate-900 rounded-lg overflow-hidden">
+        <div
+            className="h-full flex flex-col bg-white dark:bg-slate-900 rounded-lg overflow-hidden"
+            data-testid="preview-root"
+        >
             {/* View Mode Header */}
             <div className="flex items-center justify-between px-3 py-2 border-b border-slate-200 dark:border-slate-700 flex-shrink-0 bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20">
                 <div className="flex items-center gap-1.5">
@@ -549,21 +552,25 @@ export function Preview({ code, format, output, outputFormat }: PreviewProps) {
                 {(isSplit || viewMode === 'source') && (
                     <div
                         className={`flex flex-col ${isSplit ? 'w-1/2 border-r border-slate-200 dark:border-slate-700' : 'w-full'}`}
+                        data-testid="preview-source-panel"
                     >
                         <div className="px-2 py-1 text-[10px] font-semibold text-slate-400 uppercase tracking-wider bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-700/50">
                             Source • {format}
                         </div>
-                        <div className="flex-1 min-h-0">
+                        <div className="flex-1 min-h-0" data-testid="preview-source-canvas">
                             <DiagramViewer content={renderSourceContent()} svgContent={sourceSvg} />
                         </div>
                     </div>
                 )}
                 {(isSplit || viewMode === 'output') && (
-                    <div className={`flex flex-col ${isSplit ? 'w-1/2' : 'w-full'}`}>
+                    <div
+                        className={`flex flex-col ${isSplit ? 'w-1/2' : 'w-full'}`}
+                        data-testid="preview-output-panel"
+                    >
                         <div className="px-2 py-1 text-[10px] font-semibold text-slate-400 uppercase tracking-wider bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-700/50">
                             Output • {outputFormat}
                         </div>
-                        <div className="flex-1 min-h-0">
+                        <div className="flex-1 min-h-0" data-testid="preview-output-canvas">
                             <DiagramViewer content={renderOutputContent()} svgContent={outputSvg} />
                         </div>
                     </div>
