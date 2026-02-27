@@ -1,5 +1,15 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
-import { Wand2, X, CheckCircle, AlertTriangle, PanelLeftClose, PanelRightClose, Maximize2, Pencil, Loader2 } from 'lucide-react';
+import {
+    Wand2,
+    X,
+    CheckCircle,
+    AlertTriangle,
+    PanelLeftClose,
+    PanelRightClose,
+    Maximize2,
+    Pencil,
+    Loader2,
+} from 'lucide-react';
 import { Header } from './components/Header';
 import { FormatSelector } from './components/FormatSelector';
 import { CodeEditor } from './components/CodeEditor';
@@ -15,15 +25,16 @@ import { useTheme } from './hooks/useTheme';
 import { useConversionHistory } from './hooks/useConversionHistory';
 import { useBoardEditor } from './hooks/useBoardEditor';
 import { EXAMPLES } from './data/examples';
-import { 
-    parseMermaid, 
-    parsePlantUML, 
+import {
+    parseMermaid,
+    parsePlantUML,
     parseDot,
     parseDrawio,
     parseExcalidraw,
 } from '@whitebite/diagram-converter';
 
-import type { InputFormat, OutputFormat, DiagramFormat, Diagram } from '@whitebite/diagram-converter';
+import type { InputFormat, OutputFormat, Diagram } from '@whitebite/diagram-converter';
+import type { DiagramFormat } from './types/cross-origin';
 
 /** Parse code to IR based on format */
 function parseToIR(code: string, format: InputFormat): Diagram | null {
@@ -48,7 +59,13 @@ function parseToIR(code: string, format: InputFormat): Diagram | null {
 }
 
 /** Formats that support parsing (can be edited visually) */
-const PARSEABLE_FORMATS: readonly DiagramFormat[] = ['mermaid', 'drawio', 'plantuml', 'dot', 'excalidraw'] as const;
+const PARSEABLE_FORMATS: readonly DiagramFormat[] = [
+    'mermaid',
+    'drawio',
+    'plantuml',
+    'dot',
+    'excalidraw',
+] as const;
 
 /** Check if output format supports parsing */
 function isParseableFormat(format: OutputFormat): format is DiagramFormat {
@@ -71,17 +88,23 @@ function App() {
     const [showHistory, setShowHistory] = useState(false);
     const [showPreview, setShowPreview] = useState(true);
     const [inputFullscreen, setInputFullscreen] = useState(false);
-    
+
     // Track which editor is being used: 'input' or 'output'
     const [editingTarget, setEditingTarget] = useState<'input' | 'output' | null>(null);
-    
+
     // Store edited output separately (when user edits output visually)
     const [editedOutput, setEditedOutput] = useState<string | null>(null);
 
     const { output, error, isConverting } = useConverter(code, inputFormat, outputFormat);
     const { fix, fixResult, isFixerAvailable, clearResult } = useFixer(code, inputFormat, setCode);
     const { history, addToHistory, clearHistory, removeFromHistory } = useConversionHistory();
-    const { openEditor, isEditing, result: boardResult, error: boardError, reset: resetBoard } = useBoardEditor();
+    const {
+        openEditor,
+        isEditing,
+        result: boardResult,
+        error: boardError,
+        reset: resetBoard,
+    } = useBoardEditor();
 
     // Add to history when conversion succeeds
     useEffect(() => {
@@ -95,12 +118,15 @@ function App() {
     }, [output, error]);
 
     // Handle history item selection
-    const handleHistorySelect = useCallback((record: { inputCode: string; inputFormat: string; outputFormat: string }) => {
-        setCode(record.inputCode);
-        setInputFormat(record.inputFormat as InputFormat);
-        setOutputFormat(record.outputFormat as OutputFormat);
-        setShowHistory(false);
-    }, []);
+    const handleHistorySelect = useCallback(
+        (record: { inputCode: string; inputFormat: string; outputFormat: string }) => {
+            setCode(record.inputCode);
+            setInputFormat(record.inputFormat as InputFormat);
+            setOutputFormat(record.outputFormat as OutputFormat);
+            setShowHistory(false);
+        },
+        []
+    );
 
     // Parse code to IR for visual editing
     const diagram = useMemo(() => {
@@ -128,12 +154,12 @@ function App() {
             setEditingTarget(null);
         }
     }, [boardResult, editingTarget, resetBoard]);
-    
+
     // Reset edited output when input or formats change
     useEffect(() => {
         setEditedOutput(null);
     }, [code, inputFormat, outputFormat]);
-    
+
     // Use edited output if available, otherwise use converted output
     const displayOutput = editedOutput ?? output;
 
@@ -196,7 +222,7 @@ function App() {
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, []);
 
-    const handleExampleSelect = useCallback((example: typeof EXAMPLES[0]) => {
+    const handleExampleSelect = useCallback((example: (typeof EXAMPLES)[0]) => {
         setCode(example.code);
         setInputFormat(example.format as InputFormat);
         setShowExamples(false);
@@ -215,17 +241,42 @@ function App() {
 
     return (
         <div className="h-screen flex flex-col overflow-hidden">
-            <Header darkMode={isDark} onToggleDarkMode={toggleDarkMode} onShare={handleShare} onShowHistory={() => setShowHistory(true)} />
+            <Header
+                darkMode={isDark}
+                onToggleDarkMode={toggleDarkMode}
+                onShare={handleShare}
+                onShowHistory={() => setShowHistory(true)}
+            />
             <div className="border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-2 flex-shrink-0">
-                <FormatSelector inputFormat={inputFormat} outputFormat={outputFormat} onInputChange={setInputFormat} onOutputChange={setOutputFormat} onShowExamples={() => setShowExamples(true)} />
+                <FormatSelector
+                    inputFormat={inputFormat}
+                    outputFormat={outputFormat}
+                    onInputChange={setInputFormat}
+                    onOutputChange={setOutputFormat}
+                    onShowExamples={() => setShowExamples(true)}
+                />
             </div>
             <main className="flex-1 flex flex-col min-h-0 overflow-hidden">
-                <ResizablePanel direction="vertical" defaultSize={showPreview ? 60 : 100} minSize={30} maxSize={showPreview ? 85 : 100} className="flex-1">
+                <ResizablePanel
+                    direction="vertical"
+                    defaultSize={showPreview ? 60 : 100}
+                    minSize={30}
+                    maxSize={showPreview ? 85 : 100}
+                    className="flex-1"
+                >
                     <div className="h-full p-4">
-                        <ResizablePanel direction="horizontal" defaultSize={50} minSize={25} maxSize={75} className="h-full">
+                        <ResizablePanel
+                            direction="horizontal"
+                            defaultSize={50}
+                            minSize={25}
+                            maxSize={75}
+                            className="h-full"
+                        >
                             <div className="card h-full flex flex-col mr-2">
                                 <div className="flex items-center justify-between p-3 border-b border-slate-200 dark:border-slate-700 flex-shrink-0">
-                                    <h2 className="font-semibold text-slate-700 dark:text-slate-200">Input ({inputFormat.toUpperCase()})</h2>
+                                    <h2 className="font-semibold text-slate-700 dark:text-slate-200">
+                                        Input ({inputFormat.toUpperCase()})
+                                    </h2>
                                     <div className="flex items-center gap-2">
                                         {diagram && (
                                             <button
@@ -236,37 +287,92 @@ function App() {
                                                 title="Edit input diagram visually"
                                             >
                                                 {isEditing && editingTarget === 'input' ? (
-                                                    <><Loader2 className="w-4 h-4 animate-spin" /><span>Editing...</span></>
+                                                    <>
+                                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                                        <span>Editing...</span>
+                                                    </>
                                                 ) : (
-                                                    <><Pencil className="w-4 h-4" /><span>Edit Visually</span></>
+                                                    <>
+                                                        <Pencil className="w-4 h-4" />
+                                                        <span>Edit Visually</span>
+                                                    </>
                                                 )}
                                             </button>
                                         )}
-                                        {isFixerAvailable && (<button onClick={fix} className="btn btn-ghost p-2 text-indigo-600" title="Fix"><Wand2 className="w-4 h-4" /></button>)}
-                                        <button onClick={() => setInputFullscreen(true)} className="btn btn-ghost p-2" title="Fullscreen"><Maximize2 className="w-4 h-4" /></button>
-                                        <span className="text-xs text-slate-500">{code.split('\n').length} lines</span>
+                                        {isFixerAvailable && (
+                                            <button
+                                                onClick={fix}
+                                                className="btn btn-ghost p-2 text-indigo-600"
+                                                title="Fix"
+                                            >
+                                                <Wand2 className="w-4 h-4" />
+                                            </button>
+                                        )}
+                                        <button
+                                            onClick={() => setInputFullscreen(true)}
+                                            className="btn btn-ghost p-2"
+                                            title="Fullscreen"
+                                        >
+                                            <Maximize2 className="w-4 h-4" />
+                                        </button>
+                                        <span className="text-xs text-slate-500">
+                                            {code.split('\n').length} lines
+                                        </span>
                                     </div>
                                 </div>
                                 {fixResult && (
-                                    <div className={`mx-3 mt-3 p-3 rounded-lg flex items-start gap-3 flex-shrink-0 ${fixResult.appliedFixes > 0 ? 'bg-green-50 border border-green-200' : fixResult.errors.length > 0 ? 'bg-amber-50 border border-amber-200' : 'bg-slate-50 border border-slate-200'}`}>
-                                        {fixResult.appliedFixes > 0 ? <CheckCircle className="w-5 h-5 text-green-500" /> : fixResult.errors.length > 0 ? <AlertTriangle className="w-5 h-5 text-amber-500" /> : <CheckCircle className="w-5 h-5 text-slate-400" />}
-                                        <div className="flex-1 text-sm">{fixResult.appliedFixes > 0 ? <p className="text-green-700">Fixed {fixResult.appliedFixes} issues</p> : fixResult.errors.length > 0 ? <p className="text-amber-700">{fixResult.errors.length} issues found</p> : <p className="text-slate-600">No issues</p>}</div>
-                                        <button onClick={clearResult} className="text-slate-400 hover:text-slate-600"><X className="w-4 h-4" /></button>
+                                    <div
+                                        className={`mx-3 mt-3 p-3 rounded-lg flex items-start gap-3 flex-shrink-0 ${fixResult.appliedFixes > 0 ? 'bg-green-50 border border-green-200' : fixResult.errors.length > 0 ? 'bg-amber-50 border border-amber-200' : 'bg-slate-50 border border-slate-200'}`}
+                                    >
+                                        {fixResult.appliedFixes > 0 ? (
+                                            <CheckCircle className="w-5 h-5 text-green-500" />
+                                        ) : fixResult.errors.length > 0 ? (
+                                            <AlertTriangle className="w-5 h-5 text-amber-500" />
+                                        ) : (
+                                            <CheckCircle className="w-5 h-5 text-slate-400" />
+                                        )}
+                                        <div className="flex-1 text-sm">
+                                            {fixResult.appliedFixes > 0 ? (
+                                                <p className="text-green-700">
+                                                    Fixed {fixResult.appliedFixes} issues
+                                                </p>
+                                            ) : fixResult.errors.length > 0 ? (
+                                                <p className="text-amber-700">
+                                                    {fixResult.errors.length} issues found
+                                                </p>
+                                            ) : (
+                                                <p className="text-slate-600">No issues</p>
+                                            )}
+                                        </div>
+                                        <button
+                                            onClick={clearResult}
+                                            className="text-slate-400 hover:text-slate-600"
+                                        >
+                                            <X className="w-4 h-4" />
+                                        </button>
                                     </div>
                                 )}
                                 <div className="flex-1 p-3 min-h-0">
                                     <div className="h-full rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700">
-                                        <CodeEditor value={code} onChange={setCode} language={inputFormat === 'mermaid' ? 'markdown' : 'xml'} />
+                                        <CodeEditor
+                                            value={code}
+                                            onChange={setCode}
+                                            language={
+                                                inputFormat === 'mermaid' ? 'markdown' : 'xml'
+                                            }
+                                        />
                                     </div>
                                 </div>
                             </div>
                             <div className="card h-full flex flex-col ml-2 p-3">
-                                <OutputPanel 
-                                    output={displayOutput} 
-                                    error={error} 
-                                    isConverting={isConverting} 
+                                <OutputPanel
+                                    output={displayOutput}
+                                    error={error}
+                                    isConverting={isConverting}
                                     format={outputFormat}
-                                    canEditVisually={isParseableFormat(outputFormat) && !!outputDiagram}
+                                    canEditVisually={
+                                        isParseableFormat(outputFormat) && !!outputDiagram
+                                    }
                                     isEditingVisually={isEditing && editingTarget === 'output'}
                                     onEditVisually={handleEditOutputVisually}
                                 />
@@ -277,20 +383,46 @@ function App() {
                         <div className="h-full p-4 pt-0">
                             <div className="card h-full p-4 flex flex-col">
                                 <div className="flex items-center justify-between mb-3 flex-shrink-0">
-                                    <h3 className="font-semibold text-slate-700 dark:text-slate-200">Preview</h3>
+                                    <h3 className="font-semibold text-slate-700 dark:text-slate-200">
+                                        Preview
+                                    </h3>
                                 </div>
                                 <div className="flex-1 min-h-0">
-                                    <Preview code={code} format={inputFormat} output={displayOutput} outputFormat={outputFormat} />
+                                    <Preview
+                                        code={code}
+                                        format={inputFormat}
+                                        output={displayOutput}
+                                        outputFormat={outputFormat}
+                                    />
                                 </div>
                             </div>
                         </div>
                     )}
                 </ResizablePanel>
-                <button onClick={() => setShowPreview(!showPreview)} className="absolute bottom-4 right-4 btn btn-secondary shadow-lg flex items-center gap-2 z-10" title={showPreview ? 'Hide preview' : 'Show preview'}>
-                    {showPreview ? <><PanelRightClose className="w-4 h-4" /><span className="text-sm">Hide Preview</span></> : <><PanelLeftClose className="w-4 h-4" /><span className="text-sm">Show Preview</span></>}
+                <button
+                    onClick={() => setShowPreview(!showPreview)}
+                    className="absolute bottom-4 right-4 btn btn-secondary shadow-lg flex items-center gap-2 z-10"
+                    title={showPreview ? 'Hide preview' : 'Show preview'}
+                >
+                    {showPreview ? (
+                        <>
+                            <PanelRightClose className="w-4 h-4" />
+                            <span className="text-sm">Hide Preview</span>
+                        </>
+                    ) : (
+                        <>
+                            <PanelLeftClose className="w-4 h-4" />
+                            <span className="text-sm">Show Preview</span>
+                        </>
+                    )}
                 </button>
             </main>
-            {showExamples && <ExamplesGallery onSelect={handleExampleSelect} onClose={() => setShowExamples(false)} />}
+            {showExamples && (
+                <ExamplesGallery
+                    onSelect={handleExampleSelect}
+                    onClose={() => setShowExamples(false)}
+                />
+            )}
             {showHistory && (
                 <ConversionHistory
                     history={history}
@@ -300,8 +432,20 @@ function App() {
                     onClose={() => setShowHistory(false)}
                 />
             )}
-            <FullscreenModal isOpen={inputFullscreen} onClose={() => setInputFullscreen(false)} title={`Input (${inputFormat.toUpperCase()})`}>
-                <div className="h-full p-4"><div className="h-full rounded-lg overflow-hidden border border-slate-700"><CodeEditor value={code} onChange={setCode} language={inputFormat === 'mermaid' ? 'markdown' : 'xml'} /></div></div>
+            <FullscreenModal
+                isOpen={inputFullscreen}
+                onClose={() => setInputFullscreen(false)}
+                title={`Input (${inputFormat.toUpperCase()})`}
+            >
+                <div className="h-full p-4">
+                    <div className="h-full rounded-lg overflow-hidden border border-slate-700">
+                        <CodeEditor
+                            value={code}
+                            onChange={setCode}
+                            language={inputFormat === 'mermaid' ? 'markdown' : 'xml'}
+                        />
+                    </div>
+                </div>
             </FullscreenModal>
         </div>
     );
