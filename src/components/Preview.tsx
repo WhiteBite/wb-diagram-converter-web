@@ -53,29 +53,68 @@ function DiagramViewer({
     const handleZoomOut = () => setState(s => ({ ...s, zoom: Math.max(s.zoom / 1.2, 0.25) }));
     const handleReset = () => setState({ zoom: 1, pan: { x: 0, y: 0 } });
 
+    const getRenderableSize = useCallback((el: SVGSVGElement | HTMLImageElement) => {
+        if (el instanceof SVGSVGElement) {
+            const viewBox = el.viewBox?.baseVal;
+            if (viewBox && viewBox.width > 0 && viewBox.height > 0) {
+                return { width: viewBox.width, height: viewBox.height };
+            }
+
+            const widthAttr = Number.parseFloat(el.getAttribute('width') || '');
+            const heightAttr = Number.parseFloat(el.getAttribute('height') || '');
+            if (
+                Number.isFinite(widthAttr) &&
+                Number.isFinite(heightAttr) &&
+                widthAttr > 0 &&
+                heightAttr > 0
+            ) {
+                return { width: widthAttr, height: heightAttr };
+            }
+        }
+
+        if (el instanceof HTMLImageElement && el.naturalWidth > 0 && el.naturalHeight > 0) {
+            return { width: el.naturalWidth, height: el.naturalHeight };
+        }
+
+        const rect = el.getBoundingClientRect();
+        if (rect.width > 0 && rect.height > 0) {
+            return { width: rect.width, height: rect.height };
+        }
+
+        return null;
+    }, []);
+
     // Fit content to container
     const handleFitToView = useCallback(() => {
         if (!containerRef.current || !contentRef.current) return;
         const container = containerRef.current.getBoundingClientRect();
-        const svg = contentRef.current.querySelector('svg');
-        if (!svg) {
+        const renderable = contentRef.current.querySelector('svg, img') as
+            | SVGSVGElement
+            | HTMLImageElement
+            | null;
+        if (!renderable) {
             setState({ zoom: 1, pan: { x: 0, y: 0 } });
             return;
         }
-        const rect = svg.getBoundingClientRect();
-        if (rect.width === 0 || rect.height === 0) return;
-        const scaleX = (container.width - 60) / rect.width;
-        const scaleY = (container.height - 60) / rect.height;
+
+        const size = getRenderableSize(renderable);
+        if (!size) return;
+
+        const scaleX = (container.width - 60) / size.width;
+        const scaleY = (container.height - 60) / size.height;
         const scale = Math.min(scaleX, scaleY, 1.5);
         setState({ zoom: Math.max(0.25, scale), pan: { x: 0, y: 0 } });
-    }, []);
+    }, [getRenderableSize]);
 
-    // Reset on content change
+    // Re-fit only when rendered artifact changes (not loading overlays)
     useEffect(() => {
-        setState({ zoom: 1, pan: { x: 0, y: 0 } });
+        if (!svgContent) {
+            setState({ zoom: 1, pan: { x: 0, y: 0 } });
+            return;
+        }
         const timer = setTimeout(handleFitToView, 150);
         return () => clearTimeout(timer);
-    }, [content, handleFitToView]);
+    }, [svgContent, handleFitToView]);
 
     const handleWheel = useCallback((e: React.WheelEvent) => {
         e.preventDefault();
@@ -196,7 +235,7 @@ function DiagramViewer({
             {/* Canvas */}
             <div
                 ref={containerRef}
-                className={`flex-1 overflow-hidden relative select-none ${isPanning ? 'cursor-grabbing' : 'cursor-grab'}`}
+                className={`flex-1 overflow-hidden relative select-none bg-white dark:bg-white ${isPanning ? 'cursor-grabbing' : 'cursor-grab'}`}
                 onWheel={handleWheel}
                 onMouseDown={handleMouseDown}
                 onMouseMove={handleMouseMove}
@@ -270,9 +309,7 @@ export function Preview({ code, format, output, outputFormat }: PreviewProps) {
                     const mermaid = await import('mermaid');
                     mermaid.default.initialize({
                         startOnLoad: false,
-                        theme: document.documentElement.classList.contains('dark')
-                            ? 'dark'
-                            : 'default',
+                        theme: 'default',
                         securityLevel: 'loose',
                     });
                     const id = `mermaid-source-${Date.now()}`;
@@ -377,9 +414,7 @@ export function Preview({ code, format, output, outputFormat }: PreviewProps) {
                     const mermaid = await import('mermaid');
                     mermaid.default.initialize({
                         startOnLoad: false,
-                        theme: document.documentElement.classList.contains('dark')
-                            ? 'dark'
-                            : 'default',
+                        theme: 'default',
                         securityLevel: 'loose',
                     });
                     const id = `mermaid-output-${Date.now()}`;
@@ -440,16 +475,20 @@ export function Preview({ code, format, output, outputFormat }: PreviewProps) {
                     if (seq !== outputRenderSeq.current) return;
                     setOutputError(null);
                 } else if (outputFormat === 'structurizr') {
-                    // Structurizr - try Kroki, fallback to local renderer
+                    // Structurizr - prefer local renderer for deterministic preview,
+                    // then optionally upgrade to Kroki rendering when available.
+                    const localSvg = renderStructurizrSvg(output);
+                    if (seq !== outputRenderSeq.current) return;
+                    setOutputSvg(localSvg);
+
                     try {
-                        const svg = await renderViaKroki(output, 'structurizr');
+                        const krokiSvg = await renderViaKroki(output, 'structurizr');
                         if (seq !== outputRenderSeq.current) return;
-                        setOutputSvg(svg);
+                        if (krokiSvg && krokiSvg.trim()) {
+                            setOutputSvg(krokiSvg);
+                        }
                     } catch {
-                        // Fallback to local Structurizr renderer
-                        const svg = renderStructurizrSvg(output);
-                        if (seq !== outputRenderSeq.current) return;
-                        setOutputSvg(svg);
+                        // Keep local fallback; no-op
                     }
                     if (seq !== outputRenderSeq.current) return;
                     setOutputError(null);
@@ -1497,12 +1536,20 @@ function renderStructurizrSvg(code: string): string {
         const trimmed = line.trim();
         if (!trimmed || trimmed.startsWith('#') || trimmed.startsWith('//')) continue;
 
-        // Person/SoftwareSystem/Container/Component definition
-        const elementMatch = trimmed.match(
+        // Structurizr supports both styles:
+        // 1) person user "User"
+        // 2) user = person "User"
+        const assignmentMatch = trimmed.match(
+            /^([a-zA-Z0-9_]+)\s*=\s*(person|softwareSystem|container|component)\s+"([^"]+)"(?:\s+"([^"]+)")?/i
+        );
+        const inlineMatch = trimmed.match(
             /^(person|softwareSystem|container|component)\s+([a-zA-Z0-9_]+)\s*=?\s*"([^"]+)"(?:\s+"([^"]+)")?/i
         );
+        const elementMatch = assignmentMatch ?? inlineMatch;
+
         if (elementMatch) {
-            const [, type, id, label, desc] = elementMatch;
+            const [, a, b, c, d] = elementMatch;
+            const [id, type, label, desc] = assignmentMatch ? [a, b, c, d] : [b, a, c, d];
             const col = nodeIdx % 3;
             const row = Math.floor(nodeIdx / 3);
             const node: StructNode = {
